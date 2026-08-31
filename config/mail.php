@@ -101,6 +101,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Markdown Mail Settings
+    |--------------------------------------------------------------------------
+    |
+    | Laravel renders notification mail through its Markdown pipeline, which
+    | inlines a theme stylesheet over the rendered HTML. The path below lets
+    | resources/views/vendor/mail override that theme with the barangay's own
+    | (near-empty) one, so the branded inline styles are left alone.
+    |
+    */
+
+    'markdown' => [
+        'theme' => 'default',
+
+        'paths' => [
+            resource_path('views/vendor/mail'),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Global "From" Address
     |--------------------------------------------------------------------------
     |

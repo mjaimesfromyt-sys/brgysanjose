@@ -1,0 +1,8 @@
+/*
+ * Every email is rendered inside the mail-shell component
+ * (resources/views/components/mail-shell.blade.php), which carries its own
+ * inline styles for the sake of Gmail and Outlook. Laravel's stock theme is
+ * deliberately replaced with this near-empty one so its defaults (grey body
+ * text, blue links, its own button styling) are not inlined on top of the
+ * barangay branding.
+ */

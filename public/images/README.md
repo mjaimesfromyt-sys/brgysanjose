@@ -20,3 +20,19 @@ Notes:
 
 Because `public/build` is gitignored but `public/images` is not, these commit
 normally — no `git add -f` needed.
+
+## Icons generated from the barangay seal
+
+`barangay-seal.png` is also the source for the site's browser icons, which live
+in `public/` and are wired up by `resources/views/partials/favicon.blade.php`:
+
+| File | Size | Used for |
+|---|---|---|
+| `favicon.ico` | 16, 32, 48 | the browser tab (and the bare `/favicon.ico` request) |
+| `favicon-16x16.png`, `favicon-32x32.png`, `favicon-48x48.png` | as named | modern browsers |
+| `apple-touch-icon.png` | 180 | iOS home screen — flattened onto white, since iOS fills transparency with black |
+| `icon-192.png`, `icon-512.png` | as named | `site.webmanifest`, for Android home screens |
+
+The seal is padded to a square before scaling so it is not squashed. Replace the
+whole set if `barangay-seal.png` is ever swapped out — the emails embed the
+seal itself, but these are separate copies.

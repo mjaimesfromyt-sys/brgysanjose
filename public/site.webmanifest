@@ -1,0 +1,12 @@
+{
+    "name": "Barangay San Jose — Talibon, Bohol",
+    "short_name": "Brgy. San Jose",
+    "icons": [
+        { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192" },
+        { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512" }
+    ],
+    "theme_color": "#0b5e35",
+    "background_color": "#ffffff",
+    "display": "standalone",
+    "start_url": "/"
+}
