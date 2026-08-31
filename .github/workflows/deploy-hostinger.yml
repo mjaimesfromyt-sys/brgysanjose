@@ -1,0 +1,189 @@
+# Builds a deployable release and publishes it to the deploy branch that the
+# hPanel Git integration tracks.
+#
+# Hostinger shared hosting has no dependable Composer or Node toolchain, so
+# vendor/ and public/build are compiled here and committed to the deploy
+# branch. hPanel then only has to git pull.
+#
+# Run it from the Actions tab: "Deploy to Hostinger" > Run workflow.
+name: Deploy to Hostinger
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Branch, tag or SHA to build and deploy"
+        required: true
+        default: "main"
+      php_version:
+        description: "Must match hPanel > Advanced > PHP Configuration"
+        required: true
+        default: "8.3"
+        type: choice
+        options:
+          - "8.3"
+          - "8.4"
+      pull_on_hostinger:
+        description: "Trigger the hPanel auto-deploy webhook after publishing"
+        required: false
+        default: true
+        type: boolean
+
+# Two overlapping deploys would race on the same branch and could publish a
+# release built from the older ref.
+concurrency:
+  group: deploy-hostinger
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  DEPLOY_BRANCH: deploy/hostinger
+
+jobs:
+  build-and-publish:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out ${{ inputs.source_ref }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+
+      - name: Set up PHP ${{ inputs.php_version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php_version }}
+          extensions: mbstring, bcmath, pdo_mysql, gd, zip, intl, fileinfo
+          coverage: none
+          tools: composer:v2
+
+      - name: Pin Composer's platform PHP to the server version
+        # vendor/composer/platform_check.php aborts every request if the server
+        # runs an older PHP than the build did. Pinning makes the resolver pick
+        # packages that Hostinger's PHP can actually load.
+        run: composer config platform.php "${{ inputs.php_version }}"
+
+      - name: Install production PHP dependencies
+        # --no-scripts skips post-autoload-dump, which would run artisan without
+        # a real .env. Laravel rebuilds the package manifest on demand, and
+        # deploy/post-deploy.sh runs `artisan optimize` on the server anyway.
+        run: |
+          composer install \
+            --no-dev \
+            --prefer-dist \
+            --no-interaction \
+            --no-progress \
+            --optimize-autoloader \
+            --no-scripts
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build front-end assets
+        run: npm run build
+
+      - name: Verify the build produced what the server needs
+        # Cheaper to fail here than to discover a broken release after hPanel
+        # has already pulled it.
+        run: |
+          set -euo pipefail
+          test -f vendor/autoload.php \
+            || { echo "::error::composer install produced no autoloader"; exit 1; }
+          test -f public/build/manifest.json \
+            || { echo "::error::vite build produced no manifest"; exit 1; }
+          php -r 'require "vendor/autoload.php"; echo "autoloader OK\n";'
+
+      - name: Assemble the release tree
+        run: |
+          set -euo pipefail
+          RELEASE=/tmp/release
+          rm -rf "$RELEASE"
+          mkdir -p "$RELEASE"
+
+          # Copy the built workspace, then strip what must not sit inside the
+          # web root. Only coreutils, so this does not depend on rsync being
+          # present on the runner image.
+          cp -a ./. "$RELEASE"/
+
+          rm -rf \
+            "$RELEASE/.git" \
+            "$RELEASE/.github" \
+            "$RELEASE/node_modules" \
+            "$RELEASE/tests" \
+            "$RELEASE/phpunit.xml" \
+            "$RELEASE/.editorconfig" \
+            "$RELEASE/.env" \
+            "$RELEASE/.env.example" \
+            "$RELEASE/database/barangayapp.sql"
+
+          # The deploy branch must track vendor/ and public/build, which the
+          # repository's own .gitignore excludes.
+          cp deploy/gitignore-deploy "$RELEASE/.gitignore"
+
+      - name: Publish to ${{ env.DEPLOY_BRANCH }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          git init -q /tmp/deploy
+          cd /tmp/deploy
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "$REMOTE"
+
+          # Keep the branch's history linear so hPanel's `git pull` stays a
+          # fast-forward. A force-pushed or orphaned branch would leave the
+          # server unable to pull without manual intervention.
+          if git fetch -q --depth 1 origin "$DEPLOY_BRANCH" 2>/dev/null; then
+            git checkout -q -b "$DEPLOY_BRANCH" FETCH_HEAD
+            echo "Building on existing $DEPLOY_BRANCH"
+          else
+            git checkout -q -b "$DEPLOY_BRANCH"
+            echo "Creating $DEPLOY_BRANCH"
+          fi
+
+          # Replace the working tree wholesale so files deleted upstream
+          # disappear from the release instead of lingering on the server.
+          find /tmp/deploy -mindepth 1 -maxdepth 1 -name '.git' -prune -o -exec rm -rf {} +
+          cp -a /tmp/release/. /tmp/deploy/
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Release is identical to the current $DEPLOY_BRANCH; nothing to push."
+            exit 0
+          fi
+
+          git commit -q -m "Build ${{ inputs.source_ref }} (${GITHUB_SHA:0:7}) for Hostinger" \
+            -m "PHP ${{ inputs.php_version }} - workflow run ${GITHUB_RUN_ID}"
+          git push -q origin "$DEPLOY_BRANCH"
+          echo "Pushed $(git rev-parse --short HEAD) to $DEPLOY_BRANCH"
+
+      - name: Trigger the hPanel pull
+        # Optional: paste hPanel > Git > "Auto deployment" webhook URL into the
+        # HOSTINGER_DEPLOY_WEBHOOK secret. Without it, click Deploy in hPanel.
+        if: ${{ inputs.pull_on_hostinger }}
+        env:
+          WEBHOOK: ${{ secrets.HOSTINGER_DEPLOY_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK}" ]; then
+            echo "::notice::HOSTINGER_DEPLOY_WEBHOOK is not set - pull the branch from hPanel > Git > Deploy."
+            exit 0
+          fi
+          curl -fsS -X POST "${WEBHOOK}" >/dev/null
+          echo "hPanel pull triggered."
+
+      - name: Remind about the post-deploy step
+        run: |
+          echo "::notice::Release published. Migrations and cache rebuilds still need deploy/post-deploy.sh to run on the server."
