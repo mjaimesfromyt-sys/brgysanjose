@@ -102,16 +102,13 @@ jobs:
             || { echo "::error::vite build produced no manifest"; exit 1; }
           php -r 'require "vendor/autoload.php"; echo "autoloader OK\n";'
 
-      - name: Assemble the release tree
+            - name: Assemble the release tree
         run: |
           set -euo pipefail
           RELEASE=/tmp/release
           rm -rf "$RELEASE"
           mkdir -p "$RELEASE"
 
-          # Copy the built workspace, then strip what must not sit inside the
-          # web root. Only coreutils, so this does not depend on rsync being
-          # present on the runner image.
           cp -a ./. "$RELEASE"/
 
           rm -rf \
@@ -123,10 +120,10 @@ jobs:
             "$RELEASE/.editorconfig" \
             "$RELEASE/.env" \
             "$RELEASE/.env.example" \
-            "$RELEASE/database/barangayapp.sql"
+            "$RELEASE/database/barangayapp.sql" \
+            "$RELEASE/composer.json" \
+            "$RELEASE/composer.lock"
 
-          # The deploy branch must track vendor/ and public/build, which the
-          # repository's own .gitignore excludes.
           cp deploy/gitignore-deploy "$RELEASE/.gitignore"
 
       - name: Publish to ${{ env.DEPLOY_BRANCH }}
