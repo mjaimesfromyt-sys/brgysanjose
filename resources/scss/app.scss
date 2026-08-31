@@ -1,0 +1,1007 @@
+// =============================================================================
+//  Barangay Information & Booking System — design system
+//
+//  Direction: minimalist in STRUCTURE, accessible in SCALE.
+//  Clean surfaces, restrained palette, generous whitespace — but large type,
+//  strong contrast and big touch targets, because the primary audience
+//  includes elderly residents (see CLAUDE.md §0 "Design priority").
+//
+//  Every colour pairing below is chosen to clear WCAG AA (4.5:1) on its
+//  intended background; body/UI text clears AAA (7:1).
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// 1. Tokens — must be declared BEFORE the Bootstrap import to beat its !default
+// -----------------------------------------------------------------------------
+
+// Brand: deep civic green, echoing the barangay's own letterhead.
+$brand-50:  #f0fdf4;
+$brand-100: #dcfce7;
+$brand-600: #15803d;
+$brand-700: #166534; // primary — 7.4:1 on white
+$brand-800: #14532d; // hover / active
+
+// Neutrals: slate ramp. Deliberately darker than Bootstrap's defaults —
+// Bootstrap's muted grey (#6c757d) is only 4.7:1 and reads poorly for older eyes.
+$ink:        #0f172a; // body text — 17:1 on white
+$ink-muted:  #475569; // secondary text — 8.6:1 on white
+$line:       #e2e8f0; // hairline borders
+$line-strong:#cbd5e1;
+$canvas:     #f8fafc; // page background
+$surface:    #ffffff; // card background
+
+// Bootstrap theme colours (darkened variants for legible badges & alerts)
+$primary:   $brand-700;
+$secondary: #475569;
+$success:   #15803d;
+$info:      #1d4ed8;
+$warning:   #b45309;
+$danger:    #b91c1c;
+$light:     $canvas;
+$dark:      $ink;
+
+$body-bg:    $canvas;
+$body-color: $ink;
+
+// Typography — 17px base. Bumped from Bootstrap's 16px for readability.
+$font-family-sans-serif: "Instrument Sans", system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+$font-size-base:   1.0625rem;
+$line-height-base: 1.65;
+$headings-font-weight: 600;
+$headings-color: $ink;
+$headings-line-height: 1.25;
+
+// Shape — modest radii. Modern, not bubbly.
+$border-radius:    .625rem;
+$border-radius-sm: .5rem;
+$border-radius-lg: .875rem;
+$border-color:     $line;
+
+// Controls — sized for touch. 44px is the accessible minimum target.
+$input-btn-padding-y:    .625rem;
+$input-btn-padding-x:    1.15rem;
+$input-btn-font-size:    1.0625rem;
+$input-btn-focus-width:  .2rem;
+$input-btn-padding-y-sm: .45rem;
+$input-btn-padding-x-sm: .9rem;
+$input-btn-font-size-sm: 1rem;
+
+$btn-font-weight:   600;
+$btn-border-radius: $border-radius-sm;
+
+$input-bg:            $surface;
+$input-border-color:  $line-strong;
+$input-color:         $ink;
+$input-focus-border-color: $brand-600;
+$input-placeholder-color:  #94a3b8;
+
+// Surfaces
+$card-border-color:  $line;
+$card-border-radius: $border-radius-lg;
+$card-cap-bg:        transparent;
+$card-spacer-y:      1.5rem;
+$card-spacer-x:      1.5rem;
+
+$table-cell-padding-y: .875rem;
+$table-border-color:   $line;
+
+$alert-border-radius: $border-radius;
+$badge-font-weight:   600;
+$badge-padding-y:     .4em;
+$badge-padding-x:     .7em;
+
+// The events calendar needs a 7-column week grid (Sun–Sat). Bootstrap only
+// generates .row-cols-* up to $grid-row-columns, which defaults to 6 — so
+// `row-cols-md-7` silently did nothing and day cells collapsed to 2 columns.
+$grid-row-columns: 7;
+
+@import "bootstrap/scss/bootstrap";
+
+// -----------------------------------------------------------------------------
+// 2. Base
+// -----------------------------------------------------------------------------
+
+body {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+h1, .h1 { letter-spacing: -.02em; }
+h2, .h2, h3, .h3 { letter-spacing: -.01em; }
+
+.text-muted { color: $ink-muted !important; }
+
+// A single, unmistakable focus ring everywhere — critical for keyboard and
+// low-vision users, and something Bootstrap's default leaves too subtle.
+:focus-visible {
+    outline: 3px solid rgba($brand-600, .55);
+    outline-offset: 2px;
+    border-radius: $border-radius-sm;
+}
+
+// -----------------------------------------------------------------------------
+// 3. App shell
+// -----------------------------------------------------------------------------
+
+.app-shell { min-height: 100vh; display: flex; flex-direction: column; }
+.app-main  { flex: 1 0 auto; }
+
+// --- Resident / public top bar -------------------------------------------------
+.topbar {
+    background: $surface;
+    border-bottom: 1px solid $line;
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+}
+
+.topbar__brand {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    font-weight: 700;
+    font-size: 1.075rem;
+    color: $ink;
+    text-decoration: none;
+    letter-spacing: -.01em;
+    line-height: 1.2;
+
+    &:hover { color: $brand-700; }
+}
+
+.topbar__mark {
+    width: 2.35rem;
+    height: 2.35rem;
+    flex: none;
+    border-radius: .6rem;
+    background: $brand-700;
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-size: .95rem;
+    font-weight: 700;
+}
+
+.topbar__link {
+    display: block;
+    padding: .6rem .9rem;
+    border-radius: $border-radius-sm;
+    color: $ink-muted;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;          // keep "My Requests" on one line
+
+    &:hover { background: $canvas; color: $ink; }
+
+    &.is-active {
+        color: $brand-700;
+        background: $brand-50;
+        font-weight: 600;
+    }
+}
+
+// Signed-in resident name in the top bar. Clamp its width once the menu is
+// inline (xl+) so a long full name can't crowd the log-out button; in the
+// collapsed drawer below xl it uses the full row.
+.topbar__user-name {
+    @include media-breakpoint-up(xl) {
+        display: inline-block;
+        max-width: 10rem;
+    }
+    @include media-breakpoint-up(xxl) {
+        max-width: 14rem;
+    }
+}
+
+// The xl band is the tight one: 8 links + name + log-out on a single row.
+// Trim link padding, gap and type so the full menu fits inline without
+// wrapping or overflowing. Comfortable spacing returns at xxl.
+@include media-breakpoint-only(xl) {
+    .topbar__brand { font-size: 1rem; }
+
+    .topbar__link {
+        padding-inline: .5rem;
+        font-size: .9375rem;
+    }
+
+    .topbar .navbar-nav.gap-xl-1 { gap: .125rem !important; }
+}
+
+// --- Notification bell + dropdown (resident top bar) -------------------------
+.notif-menu {
+    &__count {
+        position: absolute;
+        top: -.4rem;
+        right: -.4rem;
+        font-size: .68rem;
+        line-height: 1;
+        padding: .2rem .35rem;
+    }
+
+    &__panel {
+        width: 22rem;
+        max-width: calc(100vw - 2rem);
+        border: 1px solid $line;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, .12);
+    }
+
+    &__list {
+        max-height: 22rem;
+        overflow-y: auto;
+    }
+
+    &__item {
+        display: flex;
+        gap: .6rem;
+        width: 100%;
+        padding: .7rem .9rem;
+        border: 0;
+        border-bottom: 1px solid $line;
+        background: transparent;
+        text-align: left;
+
+        &:hover,
+        &:focus-visible { background: $canvas; }
+        &:last-of-type { border-bottom: 0; }
+
+        &.is-unread { background: $brand-50; }
+        &.is-unread:hover { background: rgba($brand-700, .08); }
+    }
+
+    &__icon { flex: none; color: $ink-muted; margin-top: .1rem; }
+
+    &__body {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .1rem;
+    }
+
+    &__title { font-weight: 600; font-size: .875rem; color: $ink; }
+
+    &__text {
+        font-size: .8rem;
+        color: $ink-muted;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    &__time { font-size: .72rem; color: $ink-muted; }
+}
+
+// --- Notification history rows (full page) ----------------------------------
+.notif-row {
+    display: flex;
+    gap: .9rem;
+    align-items: flex-start;
+    width: 100%;
+    padding: 1rem;
+    border: 0;
+    border-bottom: 1px solid $line;
+    background: transparent;
+    text-align: left;
+
+    &:hover,
+    &:focus-visible { background: $canvas; }
+    &:last-of-type { border-bottom: 0; }
+
+    &.is-unread { background: $brand-50; }
+
+    &__icon { flex: none; color: $ink-muted; margin-top: .15rem; }
+
+    &__body {
+        min-width: 0;
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        gap: .15rem;
+    }
+
+    &__title { font-weight: 600; color: $ink; }
+    &__text  { color: $ink-muted; font-size: .9rem; }
+    &__time  { color: $ink-muted; font-size: .78rem; margin-top: .1rem; }
+
+    &__dot {
+        flex: none;
+        width: .55rem;
+        height: .55rem;
+        border-radius: 50%;
+        background: $brand-700;
+        margin-top: .4rem;
+    }
+}
+
+// --- Admin sidebar -------------------------------------------------------------
+$sidebar-w: 16.5rem;
+
+.admin-layout { display: flex; min-height: 100vh; }
+
+.sidebar {
+    width: $sidebar-w;
+    flex: none;
+    background: #0b2818;          // deep green-black, 15:1 against its own text
+    color: #cbd5c4;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 1045;
+    transform: translateX(-100%);
+    transition: transform .2s ease;
+
+    @include media-breakpoint-up(lg) { transform: none; }
+
+    &.is-open { transform: none; }
+}
+
+.sidebar__head {
+    padding: 1.35rem 1.25rem;
+    border-bottom: 1px solid rgba(#fff, .1);
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+}
+
+.sidebar__mark {
+    width: 2.4rem;
+    height: 2.4rem;
+    flex: none;
+    border-radius: .6rem;
+    background: $brand-600;
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: .95rem;
+}
+
+.sidebar__title {
+    color: #fff;
+    font-weight: 700;
+    font-size: .98rem;
+    line-height: 1.2;
+    letter-spacing: -.01em;
+}
+
+.sidebar__subtitle { font-size: .8rem; color: #93a892; }
+
+.sidebar__nav {
+    padding: 1rem .75rem;
+    overflow-y: auto;
+    flex: 1 1 auto;
+}
+
+.sidebar__label {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: #7d9179;
+    font-weight: 700;
+    padding: .5rem .75rem .35rem;
+}
+
+.sidebar__link {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .7rem .75rem;
+    margin-bottom: .15rem;
+    border-radius: $border-radius-sm;
+    color: #cbd5c4;
+    font-weight: 500;
+    text-decoration: none;
+
+    &:hover { background: rgba(#fff, .07); color: #fff; }
+
+    &.is-active {
+        background: $brand-600;
+        color: #fff;
+        font-weight: 600;
+    }
+
+    svg { flex: none; opacity: .95; }
+}
+
+.sidebar__foot {
+    padding: 1rem .75rem 1.25rem;
+    border-top: 1px solid rgba(#fff, .1);
+}
+
+.sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(#0f172a, .5);
+    z-index: 1040;
+    @include media-breakpoint-up(lg) { display: none; }
+}
+
+.admin-content {
+    flex: 1 1 auto;
+    min-width: 0;
+    @include media-breakpoint-up(lg) { margin-left: $sidebar-w; }
+}
+
+.admin-topbar {
+    background: $surface;
+    border-bottom: 1px solid $line;
+    padding: .9rem 0;
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+}
+
+// -----------------------------------------------------------------------------
+// 4. Components
+// -----------------------------------------------------------------------------
+
+.page-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -.02em;
+    margin: 0;
+}
+
+.page-subtitle {
+    color: $ink-muted;
+    margin: .3rem 0 0;
+}
+
+// Flat, bordered cards instead of drop shadows — cleaner and higher clarity.
+.card { box-shadow: none; }
+
+.card-soft {
+    background: $surface;
+    border: 1px solid $line;
+    border-radius: $border-radius-lg;
+}
+
+// Dashboard statistic tile
+.stat {
+    display: block;
+    background: $surface;
+    border: 1px solid $line;
+    border-radius: $border-radius-lg;
+    padding: 1.25rem 1.35rem;
+    text-decoration: none;
+    color: inherit;
+    height: 100%;
+    transition: border-color .15s ease, background .15s ease;
+
+    &:hover { border-color: $brand-600; background: $brand-50; color: inherit; }
+}
+
+.stat__label {
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    font-weight: 700;
+    color: $ink-muted;
+}
+
+.stat__value {
+    font-size: 2.1rem;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -.03em;
+    margin-top: .35rem;
+}
+
+.stat__meta { font-size: .9rem; color: $ink-muted; margin-top: .2rem; }
+
+// Large tappable action tile for the resident dashboard
+.action-tile {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: $surface;
+    border: 1px solid $line;
+    border-radius: $border-radius-lg;
+    padding: 1.5rem;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color .15s ease, background .15s ease;
+
+    &:hover { border-color: $brand-600; background: $brand-50; color: inherit; }
+}
+
+.action-tile__icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: .7rem;
+    background: $brand-50;
+    color: $brand-700;
+    display: grid;
+    place-items: center;
+    margin-bottom: 1rem;
+}
+
+.action-tile__title { font-size: 1.15rem; font-weight: 700; margin: 0 0 .3rem; }
+.action-tile__text  { color: $ink-muted; margin: 0; flex: 1 1 auto; }
+
+.action-tile__cta {
+    margin-top: 1rem;
+    font-weight: 600;
+    color: $brand-700;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+}
+
+// Tables
+.table {
+    --bs-table-bg: transparent;
+    margin-bottom: 0;
+    vertical-align: middle;
+
+    > thead th {
+        font-size: .78rem;
+        text-transform: uppercase;
+        letter-spacing: .07em;
+        font-weight: 700;
+        color: $ink-muted;
+        border-bottom: 1px solid $line;
+        white-space: nowrap;
+    }
+}
+
+.table-wrap {
+    background: $surface;
+    border: 1px solid $line;
+    border-radius: $border-radius-lg;
+    overflow: hidden;
+}
+
+.table-wrap .table-responsive { border-radius: inherit; }
+
+// Alerts — left accent bar, quiet fill.
+.alert {
+    border: 1px solid transparent;
+    border-left-width: 4px;
+    font-weight: 500;
+}
+.alert-success { background: $brand-50;  border-color: #86efac; border-left-color: $success; color: #14532d; }
+.alert-danger  { background: #fef2f2;    border-color: #fecaca; border-left-color: $danger;  color: #7f1d1d; }
+.alert-warning { background: #fffbeb;    border-color: #fde68a; border-left-color: $warning; color: #78350f; }
+.alert-info    { background: #eff6ff;    border-color: #bfdbfe; border-left-color: $info;    color: #1e3a8a; }
+
+// Status pills
+.pill {
+    display: inline-block;
+    padding: .3rem .7rem;
+    border-radius: 999px;
+    font-size: .82rem;
+    font-weight: 600;
+    line-height: 1.35;
+    white-space: nowrap;
+}
+.pill--pending  { background: #fffbeb; color: #78350f; border: 1px solid #fde68a; }
+.pill--approved { background: $brand-50; color: #14532d; border: 1px solid #86efac; }
+.pill--rejected { background: #fef2f2; color: #7f1d1d; border: 1px solid #fecaca; }
+.pill--neutral  { background: $canvas;  color: $ink-muted; border: 1px solid $line-strong; }
+.pill--info     { background: #eff6ff; color: #1e3a8a; border: 1px solid #bfdbfe; }
+
+// Forms
+.form-label { font-weight: 600; margin-bottom: .4rem; }
+.form-control, .form-select { min-height: 3rem; }
+.form-text { color: $ink-muted; }
+
+// Empty states
+.empty {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    color: $ink-muted;
+}
+.empty__title { font-weight: 700; color: $ink; font-size: 1.1rem; margin-bottom: .35rem; }
+
+// Calendar
+.cal-head {
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    font-weight: 700;
+    color: $ink-muted;
+}
+
+.cal-cell {
+    border: 1px solid $line;
+    border-radius: .6rem;
+    padding: .5rem;
+    min-height: 7rem;
+    background: $surface;
+
+    &.is-outside { background: $canvas; color: #94a3b8; }
+    &.is-today   { border-color: $brand-600; box-shadow: inset 0 0 0 1px $brand-600; }
+}
+
+.cal-date { font-size: .95rem; font-weight: 700; }
+
+.cal-date--today {
+    background: $brand-700;
+    color: #fff;
+    border-radius: 999px;
+    width: 1.75rem;
+    height: 1.75rem;
+    display: inline-grid;
+    place-items: center;
+}
+
+.cal-event {
+    display: block;
+    font-size: .8rem;
+    font-weight: 500;
+    padding: .2rem .4rem;
+    margin-top: .25rem;
+    border-radius: .35rem;
+    border-left: 3px solid;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.cal-event--info    { background: #eff6ff;  border-left-color: $info;    color: #1e3a8a; }
+.cal-event--blocking{ background: #fffbeb;  border-left-color: $warning; color: #78350f; }
+
+// Auth screens
+.auth-wrap {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 2rem 1rem;
+    background: $canvas;
+}
+// Width is set by the wrapper in layouts/auth.blade.php (@yield('auth-width')),
+// so the card itself must not impose its own max-width.
+.auth-card {
+    width: 100%;
+    background: $surface;
+    border: 1px solid $line;
+    border-radius: 1rem;
+    padding: 2.25rem;
+}
+
+// --- Public homepage: news & events -------------------------------------------
+
+.hero {
+    background: linear-gradient(180deg, $brand-50 0%, $canvas 100%);
+    border-bottom: 1px solid $line;
+    padding: 2.5rem 0 3rem;
+}
+
+// Official letterhead crest. Mirrors the barangay's own certificates:
+// barangay seal on the left, municipal seal on the right, titles centred.
+.crest {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(.75rem, 3vw, 2.25rem);
+    text-align: center;
+    padding-bottom: 2rem;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid rgba($brand-700, .18);
+}
+
+.crest__seal {
+    flex: none;
+    width: clamp(3.5rem, 11vw, 6.5rem);
+    height: clamp(3.5rem, 11vw, 6.5rem);
+    object-fit: contain;
+}
+
+.crest__text { min-width: 0; }
+
+.crest__republic {
+    display: block;
+    font-size: clamp(.72rem, 1.8vw, .95rem);
+    color: $ink-muted;
+    line-height: 1.45;
+}
+
+.crest__name {
+    display: block;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    line-height: 1.15;
+    color: $brand-800;
+    font-size: clamp(1.35rem, 4.5vw, 2.35rem);
+    margin: .15rem 0;
+}
+
+.crest__since {
+    display: block;
+    font-size: clamp(.7rem, 1.7vw, .85rem);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    font-weight: 700;
+    color: $brand-600;
+}
+
+// Seal used as the brand mark in the top bar and admin sidebar.
+.seal--brand {
+    width: 2.5rem;
+    height: 2.5rem;
+    object-fit: contain;
+    flex: none;
+}
+
+.hero__title {
+    font-size: clamp(1.9rem, 4vw, 2.85rem);
+    font-weight: 700;
+    letter-spacing: -.03em;
+    line-height: 1.15;
+}
+
+// A news entry in the homepage feed / news list.
+.news-item {
+    display: block;
+    padding: 1.35rem;
+    border: 1px solid $line;
+    border-radius: $border-radius-lg;
+    background: $surface;
+    text-decoration: none;
+    color: inherit;
+    height: 100%;
+    transition: border-color .15s ease, background .15s ease;
+
+    &:hover { border-color: $brand-600; background: $brand-50; color: inherit; }
+}
+
+.news-item__meta {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+    font-size: .85rem;
+    color: $ink-muted;
+    margin-bottom: .55rem;
+}
+
+.news-item__title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    margin: 0 0 .4rem;
+}
+
+.news-item__excerpt {
+    color: $ink-muted;
+    margin: 0;
+}
+
+// Long-form announcement body. Generous measure and leading for readability.
+.prose {
+    font-size: 1.1rem;
+    line-height: 1.75;
+    max-width: 42rem;
+    white-space: pre-line;   // preserve the line breaks admins type
+
+    p:last-child { margin-bottom: 0; }
+}
+
+// -----------------------------------------------------------------------------
+// 4b. Charts
+//
+// Marks are plain HTML, so label text keeps its native size instead of being
+// scaled by an SVG viewBox — which matters when the audience includes elderly
+// readers.
+//
+// The categorical slots below are the documented, VALIDATED order. Do not
+// re-order or substitute brand hues by eye: green-led orderings were tested and
+// failed colourblind separation (ΔE 3.2 against an ≥8 target). Re-run
+// scripts/validate_palette.js before changing any of these.
+// -----------------------------------------------------------------------------
+
+.viz {
+    --viz-surface: #{$surface};
+    --viz-grid:    #{$line};
+    --viz-axis:    #{$line-strong};
+
+    --series-1: #2a78d6; // blue
+    --series-2: #eb6834; // orange
+    --series-3: #1baf7a; // aqua
+    --series-4: #eda100; // yellow
+}
+
+// --- Part-to-whole: one horizontal stacked bar --------------------------------
+.viz-stack {
+    display: flex;
+    gap: 2px;              // the surface gap does the separating — never a border
+    height: 1.5rem;        // 24px, the mark-thickness cap
+    margin-bottom: 1rem;
+}
+
+.viz-stack__seg {
+    background: var(--seg);
+    border-radius: 3px;
+    min-width: 3px;        // a non-zero count never disappears entirely
+    transition: filter .12s ease;
+
+    &:first-child { border-radius: 5px 3px 3px 5px; }
+    &:last-child  { border-radius: 3px 5px 5px 3px; }
+    &:hover       { filter: brightness(.92); }
+}
+
+.viz-stack__empty {
+    flex: 1;
+    border-radius: 5px;
+    background: $canvas;
+    border: 1px dashed $line-strong;
+}
+
+// Legend carries identity AND the value, so nothing depends on colour alone.
+// This is also the contrast relief for the lighter slots (aqua/yellow sit
+// below 3:1 on white by design).
+.viz-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem 1.15rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: .92rem;
+}
+
+.viz-legend li { display: flex; align-items: center; gap: .45rem; }
+
+.viz-legend__swatch {
+    width: .8rem;
+    height: .8rem;
+    border-radius: 3px;
+    background: var(--seg);
+    flex: none;
+}
+
+.viz-legend__value { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+// --- Trend: columns -----------------------------------------------------------
+$viz-plot-h: 10rem;
+
+.viz-cols { display: grid; grid-template-columns: auto 1fr; gap: .6rem; }
+
+.viz-cols__ticks {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: $viz-plot-h;
+    font-size: .75rem;
+    color: $ink-muted;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.viz-cols__plot { position: relative; }
+
+.viz-cols__grid {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: $viz-plot-h;
+    pointer-events: none;
+
+    span {                       // solid hairlines, never dashed
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: var(--viz-grid);
+    }
+}
+
+.viz-cols__bars {
+    position: relative;
+    height: $viz-plot-h;
+    display: flex;
+    align-items: flex-end;
+    border-bottom: 1px solid var(--viz-axis);
+}
+
+.viz-cols__slot {
+    flex: 1 1 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    height: 100%;
+}
+
+.viz-cols__bar {
+    width: 100%;
+    max-width: 1.5rem;           // 24px cap; the band's leftover stays as air
+    background: var(--series-1);
+    border-radius: 4px 4px 0 0;  // rounded data-end, square at the baseline
+    min-height: 2px;
+    transition: filter .12s ease;
+
+    &:hover { filter: brightness(.92); }
+    &.is-zero { background: $line-strong; }
+}
+
+.viz-cols__labels {
+    display: flex;
+    margin-top: .4rem;
+    font-size: .78rem;
+    color: $ink-muted;
+
+    span { flex: 1 1 0; text-align: center; }
+}
+
+// --- Magnitude: horizontal bars ----------------------------------------------
+.viz-rows { display: grid; gap: .7rem; }
+
+.viz-rows__row {
+    display: grid;
+    grid-template-columns: minmax(6rem, 10rem) 1fr auto;
+    align-items: center;
+    gap: .75rem;
+}
+
+.viz-rows__label {
+    font-size: .92rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.viz-rows__track { background: $canvas; border-radius: 5px; height: 1.25rem; }
+
+.viz-rows__bar {
+    height: 100%;
+    background: var(--series-1);
+    border-radius: 3px 5px 5px 3px;
+    transition: filter .12s ease;
+
+    // Deliberately NO min-width: a zero count must render as nothing at all.
+    // A minimum sliver would draw a mark where there is no data. The template
+    // already floors non-zero values at 2% so small counts stay visible.
+
+    &:hover { filter: brightness(.92); }
+}
+
+.viz-rows__value { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 2ch; text-align: right; }
+
+// --- Table view twin ----------------------------------------------------------
+// Every chart ships one: it is the WCAG-clean equivalent and the relief channel
+// for the sub-3:1 slots.
+.viz-table {
+    margin-top: 1rem;
+    font-size: .9rem;
+
+    summary {
+        cursor: pointer;
+        color: $ink-muted;
+        font-weight: 600;
+        &:hover { color: $ink; }
+    }
+
+    table { width: 100%; margin-top: .6rem; }
+    th, td { padding: .35rem .5rem; border-bottom: 1px solid $line; }
+    td:last-child, th:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+}
+
+// -----------------------------------------------------------------------------
+// 5. Print — reports must stay printable (ReportController uses window.print())
+// -----------------------------------------------------------------------------
+
+@media print {
+    .topbar,
+    .sidebar,
+    .sidebar-backdrop,
+    .admin-topbar,
+    footer,
+    .d-print-none {
+        display: none !important;
+    }
+
+    .admin-content { margin-left: 0 !important; }
+
+    body { background: #fff !important; font-size: 11pt; }
+
+    .card,
+    .card-soft,
+    .table-wrap,
+    .stat {
+        border: 1px solid #ddd !important;
+        box-shadow: none !important;
+        break-inside: avoid;
+    }
+}
