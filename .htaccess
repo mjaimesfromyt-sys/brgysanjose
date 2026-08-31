@@ -1,0 +1,50 @@
+# ---------------------------------------------------------------------------
+# Hostinger shared hosting front controller
+#
+# On Hostinger shared plans the document root is fixed to public_html, so the
+# repository is deployed there in full and this file forwards every request
+# into Laravel's public/ directory. It also denies direct access to the
+# application source, which would otherwise sit inside the web root.
+#
+# In local development this file is never served (php artisan serve and Vite
+# both use public/ as the root), so it is inert outside of production.
+# ---------------------------------------------------------------------------
+
+<IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
+
+    RewriteEngine On
+
+    # Block the application source outright. These never serve a response, so a
+    # misconfigured rewrite cannot leak .env, migrations or vendor packages.
+    RewriteRule ^(app|bootstrap|config|database|deploy|docs|resources|routes|storage|tests|vendor)(/|$) - [F,L]
+
+    # Let ACME / domain-verification probes resolve straight from disk rather
+    # than being forwarded into public/, where they do not exist.
+    RewriteRule ^\.well-known/ - [L]
+
+    # Handle Authorization Header
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Handle X-XSRF-Token Header
+    RewriteCond %{HTTP:x-xsrf-token} .
+    RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
+
+    # Send everything else to Laravel's public/ directory.
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+# Deny dotfiles and project metadata even when mod_rewrite is unavailable.
+<FilesMatch "^\.|^(composer|package)(-lock)?\.(json|lock)$|^(artisan|phpunit\.xml|vite\.config\.js|README\.md)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
