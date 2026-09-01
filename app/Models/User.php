@@ -108,4 +108,27 @@ class User extends Authenticatable
             },
         );
     }
+
+    public function hasAvatar(): bool
+    {
+        return filled($this->avatar_path);
+    }
+
+    /**
+     * First and last initial, for the placeholder shown until a resident
+     * uploads a photo.
+     */
+    protected function initials(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                $initials = collect([$this->first_name, $this->last_name])
+                    ->filter()
+                    ->map(fn (string $part) => mb_strtoupper(mb_substr($part, 0, 1)))
+                    ->implode('');
+
+                return $initials !== '' ? $initials : '?';
+            },
+        );
+    }
 }

@@ -23,6 +23,7 @@ use App\Http\Controllers\Admin\EquipmentRentalController as AdminEquipmentRental
 use App\Http\Controllers\Admin\TransactionHistoryController;
 use App\Http\Controllers\Admin\RefundRequestController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ProfileController;
 
 // Public pages — barangay news and events are readable without an account.
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -41,6 +42,16 @@ Route::middleware('guest')->group(function () {
     Route::middleware('auth')->group(function () {
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // My Profile — reached by clicking your own name in the top bar.
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
+    Route::post('/profile/photo', [ProfileController::class, 'updatePhoto'])->name('profile.photo.update');
+    Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])->name('profile.photo.destroy');
+    // Profile photos live outside the web root, so they are streamed rather
+    // than linked. See ProfileController::photo().
+    Route::get('/profile/photo/{user}', [ProfileController::class, 'photo'])->name('profile.photo');
 
     // In-app notifications (bell menu in the top bar)
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');

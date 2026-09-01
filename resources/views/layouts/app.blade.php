@@ -74,10 +74,12 @@
 
                     @auth
                         <div class="ms-xl-auto d-flex align-items-center gap-3 py-2 py-xl-0">
-                            <span class="d-flex align-items-center gap-2 text-muted mw-100">
-                                @include('partials.icon', ['name' => 'user', 'size' => 18])
+                            <a href="{{ route('profile.edit') }}" title="My Profile"
+                               class="d-flex align-items-center gap-2 text-decoration-none mw-100
+                                      {{ request()->routeIs('profile.*') ? 'is-active' : '' }}">
+                                @include('partials.avatar', ['size' => 30])
                                 <span class="fw-semibold text-dark text-truncate topbar__user-name">{{ auth()->user()->name }}</span>
-                            </span>
+                            </a>
                             @include('partials.notification-menu')
                             <form method="POST" action="{{ route('logout') }}" class="m-0 flex-shrink-0">
                                 @csrf

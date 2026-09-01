@@ -156,8 +156,11 @@
                 </button>
 
                 <div class="ms-auto d-flex align-items-center gap-2 text-muted">
-                    @include('partials.icon', ['name' => 'user', 'size' => 18])
-                    <span class="fw-semibold text-dark">{{ auth()->user()->name }}</span>
+                    <a href="{{ route('profile.edit') }}" title="My Profile"
+                       class="d-flex align-items-center gap-2 text-decoration-none">
+                        @include('partials.avatar', ['size' => 28])
+                        <span class="fw-semibold text-dark">{{ auth()->user()->name }}</span>
+                    </a>
                     <span class="pill pill--neutral ms-1">{{ ucfirst(auth()->user()->role) }}</span>
                 </div>
             </div>
