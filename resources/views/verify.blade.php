@@ -320,6 +320,8 @@ body{
     display:flex;
     align-items:center;
     gap:20px;
+    flex:1 1 340px;
+    min-width:0;
     color:#2f3b34;
     font-size:15px;
     line-height:1.6;
@@ -327,7 +329,16 @@ body{
 
 .footer-left svg{flex:none;color:var(--green-dark)}
 
-.signature{text-align:center;line-height:1.5}
+/* Stacked column so the name, and the "Barangay Secretary" role under it,
+   can never end up side by side when the footer gets narrow. */
+.signature{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    flex:none;
+    text-align:center;
+    line-height:1.5;
+}
 
 .signature .sign{
     font-family:"Great Vibes","Segoe Script","Brush Script MT",cursive;
@@ -335,6 +346,10 @@ body{
     color:var(--green-dark);
     line-height:1.2;
 }
+
+.signature .sign,
+.signature .name,
+.signature .role{white-space:nowrap}
 
 .signature .name{
     font-weight:700;
@@ -404,6 +419,9 @@ body{
 
 @media(max-width:900px){
     .grid{grid-template-columns:1fr}
+    .footer{flex-direction:column;align-items:stretch;gap:18px}
+    .footer-left{flex:none;width:100%}
+    .signature{align-items:flex-start;text-align:left;width:100%}
     .verified-box{flex-direction:column;align-items:flex-start}
     .official-note{max-width:none}
     .header{flex-wrap:wrap;justify-content:center;padding:22px}
@@ -436,10 +454,13 @@ body{
     .check-list{padding:16px}
     .qr-note{margin:4px 16px 16px;padding:14px 16px;gap:12px}
 
-    .footer{flex-direction:column;align-items:flex-start;padding:20px 16px;gap:18px;margin-top:18px}
-    .signature{text-align:left;width:100%}
+    .footer{padding:20px 16px;gap:18px;margin-top:18px}
+    .footer-left{gap:14px}
     .footer-left svg{width:38px;height:38px}
-    .bottom{font-size:14px;gap:6px}
+    .signature .sign{font-size:30px}
+    /* stack the two lines instead of leaving a dangling "|" at a wrap */
+    .bottom{flex-direction:column;font-size:14px;gap:6px}
+    .bottom .sep{display:none}
 }
 </style>
 </head>
