@@ -94,36 +94,67 @@
                     </div>
                 </div>
 
-                @if ($refund->status === 'requested')
-                    <hr class="my-2">
-                    <div class="row g-2">
-                        <div class="col-md-7">
-                            <form method="POST" action="{{ route('admin.refunds.approve', $refund) }}"
-                                  class="d-flex flex-wrap align-items-end gap-2">
-                                @csrf
-                                <div>
-                                    <label class="form-label small mb-1" for="amount-{{ $refund->id }}">Refund amount (₱)</label>
-                                    <input type="number" step="0.01" min="0" max="{{ $estimate['refundable'] }}"
-                                           class="form-control form-control-sm" style="width:8rem"
-                                           id="amount-{{ $refund->id }}" name="amount"
-                                           value="{{ old('amount', number_format($estimate['refundable'], 2, '.', '')) }}" required>
-                                </div>
-                                <input type="text" name="admin_remarks" class="form-control form-control-sm" style="max-width:16rem"
-                                       placeholder="Note to resident (optional)">
-                                <button class="btn btn-sm btn-success">Approve</button>
-                            </form>
-                        </div>
-                        <div class="col-md-5">
-                            <button type="button" class="btn btn-sm btn-outline-danger"
-                                    data-bs-toggle="collapse" data-bs-target="#reject-{{ $refund->id }}">Reject</button>
-                            <div class="collapse mt-2" id="reject-{{ $refund->id }}">
-                                <form method="POST" action="{{ route('admin.refunds.reject', $refund) }}">
-                                    @csrf
-                                    <textarea name="admin_remarks" rows="2" class="form-control form-control-sm mb-2" required
-                                              placeholder="Reason for rejection (shown to the resident)"></textarea>
-                                    <button class="btn btn-sm btn-danger w-100">Confirm rejection</button>
-                                </form>
-                            </div>
+               @if ($refund->status === 'requested')
+    <hr class="my-2">
+
+    <div class="d-flex flex-wrap align-items-end gap-2">
+
+        <form method="POST" action="{{ route('admin.refunds.approve', $refund) }}"
+              class="d-flex flex-wrap align-items-end gap-2">
+            @csrf
+
+            <div>
+                <label class="form-label small mb-1" for="amount-{{ $refund->id }}">
+                    Refund amount (₱)
+                </label>
+
+                <input type="number"
+                       step="0.01"
+                       min="0"
+                       max="{{ $estimate['refundable'] }}"
+                       class="form-control form-control-sm"
+                       style="width:8rem"
+                       id="amount-{{ $refund->id }}"
+                       name="amount"
+                       value="{{ old('amount', number_format($estimate['refundable'], 2, '.', '')) }}"
+                       required>
+            </div>
+
+            <input type="text"
+                   name="admin_remarks"
+                   class="form-control form-control-sm"
+                   style="width:16rem"
+                   placeholder="Note to resident (optional)">
+
+            <button class="btn btn-sm btn-success">
+                Approve
+            </button>
+        </form>
+
+        <button type="button"
+                class="btn btn-sm btn-outline-danger"
+                data-bs-toggle="collapse"
+                data-bs-target="#reject-{{ $refund->id }}">
+            Reject
+        </button>
+
+    </div>
+
+    <div class="collapse mt-2" id="reject-{{ $refund->id }}">
+        <form method="POST" action="{{ route('admin.refunds.reject', $refund) }}">
+            @csrf
+
+            <textarea name="admin_remarks"
+                      rows="2"
+                      class="form-control form-control-sm mb-2"
+                      required
+                      placeholder="Reason for rejection (shown to the resident)"></textarea>
+
+            <button class="btn btn-sm btn-danger">
+                Confirm rejection
+            </button>
+        </form>
+    </div>
                         </div>
                     </div>
                 @elseif ($refund->status === 'approved')

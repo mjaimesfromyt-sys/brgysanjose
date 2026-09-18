@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TransactionType extends Model
 {
-    protected $fillable = ['name', 'description', 'requires_residency', 'fee', 'is_active'];
+    protected $fillable = ['name', 'slug', 'description', 'requires_residency', 'fee', 'is_active'];
 
     protected $casts = [
         'requires_residency' => 'boolean',

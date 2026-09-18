@@ -10,15 +10,18 @@ class DatabaseSeeder extends Seeder
     use WithoutModelEvents;
 
     /**
-     * Only the admin account is seeded. Facilities, equipment and document
-     * types are managed by the barangay staff through the admin panel, not
-     * seeded. Run FacilitySeeder / EquipmentSeeder / TransactionTypeSeeder
-     * by hand if you want the sample catalog back.
+     * Seeds the full baseline catalog: admin account, barangay settings,
+     * document types (with slugs + requirements), equipment, and facilities.
+     * All seeders use firstOrCreate, so re-running is safe.
      */
     public function run(): void
     {
         $this->call([
             AdminUserSeeder::class,
+            BarangaySettingsSeeder::class,
+            TransactionTypeSeeder::class,
+            EquipmentSeeder::class,
+            FacilitySeeder::class,
         ]);
     }
 }

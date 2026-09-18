@@ -6,6 +6,8 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#166534">
     <title>@yield('title', 'Sign in') &middot; Barangay San Jose</title>
+    @include('partials.favicon')
+    @include('partials.google-analytics')
     @vite(['resources/scss/app.scss', 'resources/js/app.js'])
 </head>
 <body>

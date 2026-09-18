@@ -13,7 +13,12 @@ return [
     | a conventional file to locate the various service credentials.
     |
     */
-
+     'google' => [
+    'client_id' => env('GOOGLE_CLIENT_ID'),
+    'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+    'redirect' => env('GOOGLE_REDIRECT_URI'),
+    ],
+    
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],
@@ -32,13 +37,18 @@ return [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
-        ],
+         ],
     ],
 
     'paymongo' => [
         'secret' => env('PAYMONGO_SECRET_KEY'),
         'public' => env('PAYMONGO_PUBLIC_KEY'),
         'transaction_fee' => env('PAYMONGO_TRANSACTION_FEE', 20),
-    ],
+        'webhook_secret' => env('PAYMONGO_WEBHOOK_SECRET'),
+      ],
+      'turnstile' => [
+    'site_key' => env('TURNSTILE_SITE_KEY'),
+    'secret_key' => env('TURNSTILE_SECRET_KEY'),
+],
 
 ];

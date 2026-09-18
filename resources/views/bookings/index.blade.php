@@ -2,7 +2,7 @@
 @section('title', 'My Bookings')
 
 @section('content')
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div>
         <h1 class="page-title d-flex align-items-center gap-2">
             @include('partials.icon', ['name' => 'calendar-check', 'size' => 26])
@@ -10,25 +10,26 @@
         </h1>
         <p class="page-subtitle">Facility reservations you have requested.</p>
     </div>
-    <a href="{{ route('bookings.create') }}" class="btn btn-primary">
-        @include('partials.icon', ['name' => 'plus', 'size' => 18])
-        <span class="ms-1">New booking</span>
+
+    <a href="{{ route('bookings.create') }}" class="btn btn-primary d-inline-flex align-items-center gap-1">
+        @include('partials.icon', ['name' => 'plus', 'size' => 16])
+        New booking
     </a>
 </div>
 
 @if ($bookings->isEmpty())
     <div class="card-soft">
         <div class="empty">
-            @include('partials.icon', ['name' => 'calendar-check', 'size' => 32])
+            @include('partials.icon', ['name' => 'calendar', 'size' => 32])
             <div class="empty__title mt-2">No bookings yet</div>
-            <p>Reserve the barangay hall, covered court or conference room.</p>
-            <a href="{{ route('bookings.create') }}" class="btn btn-primary mt-2">Book a facility</a>
+            <p class="mb-3">You haven't reserved any facility.</p>
+            <a href="{{ route('bookings.create') }}" class="btn btn-sm btn-primary">Book a facility</a>
         </div>
     </div>
 @else
     <div class="table-wrap">
         <div class="table-responsive">
-            <table class="table">
+            <table class="table align-middle">
                 <thead>
                     <tr>
                         <th>Facility</th>
@@ -42,7 +43,9 @@
                 <tbody>
                     @foreach ($bookings as $booking)
                         <tr>
-                            <td class="fw-semibold">{{ $booking->facility->name }}</td>
+                            <td>
+                                <div class="fw-semibold">{{ $booking->facility->name }}</div>
+                            </td>
                             <td>
                                 @if ($booking->start_date->eq($booking->end_date))
                                     {{ $booking->start_date->format('M d, Y') }}
@@ -59,7 +62,7 @@
                             <td>
                                 @if ($booking->claim_code)
                                     <a href="{{ route('bookings.receipt', $booking) }}" class="small fw-semibold text-decoration-none">View receipt</a>
-                                @elseif ($booking->payment_method !== 'cash' && $booking->payment_status === 'unpaid')
+                                @elseif ($booking->status !== 'rejected' && $booking->payment_method !== 'cash' && $booking->payment_status === 'unpaid')
                                     <form method="POST" action="{{ route('bookings.pay.retry', $booking) }}">
                                         @csrf
                                         <button class="btn btn-sm btn-outline-primary">Pay now</button>

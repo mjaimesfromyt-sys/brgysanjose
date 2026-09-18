@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Models\Booking;
 use App\Models\DocumentRequest;
 use App\Models\EquipmentRental;
+use App\Models\CaptainAppointment;
+use Carbon\Carbon;
 use App\Models\User;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -22,8 +24,8 @@ class TransactionHistoryController extends Controller
 
         $transactions = $this->getTransactions($search, $service, $paymentStatus, $dateFrom, $dateTo);
 
-        $services = ['bookings' => 'Facility Bookings', 'document_requests' => 'Document Requests', 'equipment_rentals' => 'Equipment Rentals'];
-        $paymentStatuses = ['paid' => 'Paid', 'unpaid' => 'Unpaid', 'refunded' => 'Refunded'];
+        $services = ['bookings' => 'Facility Bookings', 'document_requests' => 'Document Requests', 'equipment_rentals' => 'Equipment Rentals', 'appointments' => 'Captain Appointments'];
+        $paymentStatuses = ['paid' => 'Paid', 'unpaid' => 'Unpaid'];
 
         return view('admin.transactions.history', compact(
             'transactions',
@@ -157,6 +159,45 @@ class TransactionHistoryController extends Controller
                     ];
                 });
             $allTransactions = $allTransactions->concat($rentals);
+        }
+
+        
+        // Captain Appointments
+        if (!$service || $service === 'appointments') {
+            $appointments = CaptainAppointment::with('user')
+                ->when($search, function ($q) use ($search) {
+                    $q->whereHas('user', function ($uq) use ($search) {
+                        $uq->whereRaw("CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name, ' ', COALESCE(suffix, '')) LIKE ?", ["%{$search}%"])
+                            ->orWhere('email', 'like', "%{$search}%")
+                            ->orWhere('contact_no', 'like', "%{$search}%");
+                    });
+                })
+                ->when($dateFrom, fn ($q) => $q->whereDate('created_at', '>=', $dateFrom))
+                ->when($dateTo, fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
+                ->get()
+                ->map(function ($app) {
+                    return [
+                        'id' => $app->id,
+                        'type' => 'appointment',
+                        'service' => 'Captain Appointment',
+                        'resident' => $app->user,
+                        'resident_name' => $app->user ? $app->user->name : 'N/A',
+                        'resident_email' => $app->user ? $app->user->email : 'N/A',
+                        'resident_contact' => $app->user ? $app->user->contact_no : 'N/A',
+                        'service_name' => $app->category . ' (' . Carbon::parse($app->date)->format('M d, Y') . ' '. Carbon::parse($app->start_time)->format('h:i A') . ')',
+                        'amount' => null,
+                        'payment_method' => null,
+                        'payment_status' => null,
+                        'payment_reference' => 'APPT-' . str_pad($app->id, 4, '0', STR_PAD_LEFT),
+                        'payment_channel' => 'Barangay Office',
+                        'claim_code' => 'APPT-' . $app->id,
+                        'status' => $app->status,
+                        'created_at' => $app->created_at,
+                        'approved_at' => $app->reviewed_at,
+                        'paid_at' => $app->created_at,
+                    ];
+                });
+            $allTransactions = $allTransactions->concat($appointments);
         }
 
         return $allTransactions->sortByDesc('created_at')->values();

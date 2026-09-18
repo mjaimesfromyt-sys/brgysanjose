@@ -1,17 +1,12 @@
 <?php
 
 namespace App\Http\Controllers;
+use App\Events\NewTransactionEvent;
 
 use App\Models\Equipment;
 use App\Models\EquipmentRental;
-use App\Models\RefundRequest;
-use App\Models\User;
-use App\Notifications\EquipmentRentalStatusNotification;
-use App\Notifications\RefundRequestStatusNotification;
 use App\Services\PayMongoService;
-use App\Support\ClaimCode;
-use App\Support\Notify;
-use App\Support\RentalRefund;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -25,10 +20,12 @@ class EquipmentRentalController extends Controller
     public function index(Request $request)
     {
         $rentals = $request->user()->equipmentRentals()
-            ->with(['items.equipment', 'refundRequests'])
+            ->with('items.equipment')
             ->latest('start_date')
             ->get();
 
+        
+        event(new NewTransactionEvent('Equipment Rental', 'New Equipment Rental', auth()->user()->name ?? 'Resident', 'EQ-' . ($rental->id ?? rand(100, 999)), route('admin.rentals.index')));
         return view('rentals.index', compact('rentals'));
     }
 
@@ -38,7 +35,15 @@ class EquipmentRentalController extends Controller
 
         $equipment = Equipment::where('is_active', true)->orderBy('name')->get();
 
-        return view('rentals.create', compact('equipment'));
+        // Compute ang aktwal nga availability base sa gipiling petsa
+        $startDate = $request->input('start_date', now()->toDateString());
+        $endDate   = $request->input('end_date', $startDate);
+
+        foreach ($equipment as $item) {
+            $item->available_stock = $item->availableFor($startDate, $endDate);
+        }
+
+        return view('rentals.create', compact('equipment', 'startDate', 'endDate'));
     }
 
     public function store(Request $request)
@@ -52,7 +57,7 @@ class EquipmentRentalController extends Controller
             'items'                => ['required', 'array'],
             'items.*.equipment_id' => ['required', 'exists:equipment,id'],
             'items.*.quantity'     => ['nullable', 'integer', 'min:0'],
-            'payment_method'       => ['required', 'in:cash,gcash,paymaya,bank_transfer'],
+            'payment_method'       => ['required', 'in:cash,gcash,cashless,paymaya,bank_transfer'],
         ]);
 
         $lines = collect($validated['items'])
@@ -69,6 +74,11 @@ class EquipmentRentalController extends Controller
         $equipmentIds = Equipment::where('is_active', true)
             ->whereIn('id', $lines->pluck('equipment_id'))
             ->pluck('id');
+
+        // Gidaghanon sa Adlaw
+        $startDate = Carbon::parse($validated['start_date']);
+        $endDate   = Carbon::parse($validated['end_date']);
+        $daysCount = $startDate->diffInDays($endDate) + 1; // e.g. Sep 4 to Sep 5 = 2 days
 
         $amountDue = 0;
         $equipmentById = [];
@@ -90,7 +100,12 @@ class EquipmentRentalController extends Controller
             }
 
             $equipmentById[$line['equipment_id']] = $item;
-            $amountDue += ($item->fee ?? 0) * (int) $line['quantity'];
+
+            // 👉 CEMENT MIXER PER DAY LOGIC
+            $isPerDay = str_contains(strtolower($item->name), 'mixer');
+            $multiplier = $isPerDay ? $daysCount : 1;
+
+            $amountDue += ($item->fee ?? 0) * (int) $line['quantity'] * $multiplier;
         }
 
         $isCashless = $validated['payment_method'] !== 'cash';
@@ -118,145 +133,129 @@ class EquipmentRentalController extends Controller
 
         if (! $isCashless) {
             return redirect()->route('rentals.index')
-                ->with('success', 'Equipment rental request submitted. It is now pending admin approval.');
+                ->with('success', 'Equipment rental request submitted. Total amount due: ₱' . number_format($amountDue, 2) . ' (' . $daysCount . ' day/s). Pending admin approval.');
         }
 
-        $lineItems = $lines->map(fn ($line) => [
-            'name'     => $equipmentById[$line['equipment_id']]->name,
-            'amount'   => PayMongoService::toCentavos($equipmentById[$line['equipment_id']]->fee ?? 0),
-            'currency' => 'PHP',
-            'quantity' => (int) $line['quantity'],
-        ])->values()->all();
+        $lineItems = $lines->map(function ($line) use ($equipmentById, $daysCount) {
+            $item = $equipmentById[$line['equipment_id']];
+            $isPerDay = str_contains(strtolower($item->name), 'mixer');
+            $unitFee = (float) ($item->fee ?? 0);
+            $finalUnitPrice = $isPerDay ? ($unitFee * $daysCount) : $unitFee;
 
-        $lineItems[] = PayMongoService::transactionFeeLineItem();
+            $label = $item->name . ($isPerDay ? " ({$daysCount} days @ ₱" . number_format($unitFee, 2) . "/day)" : '');
 
-        return $this->startCheckout(
-            $rental,
-            $lineItems,
-            "Equipment rental #{$rental->id} — Barangay San Jose",
-            route('rentals.pay.callback', $rental),
-            route('rentals.pay.cancel', $rental),
-        );
+            return [
+                'name'     => $label,
+                'amount'   => PayMongoService::toCentavos($finalUnitPrice),
+                'currency' => 'PHP',
+                'quantity' => (int) $line['quantity'],
+            ];
+        })->values()->all();
+
+        if ($isCashless) {
+            $lineItems[] = PayMongoService::transactionFeeLineItem();
+        }
+
+        return $this->startCheckout($rental, $lineItems, $validated['payment_method']);
+    }
+
+    private function startCheckout(EquipmentRental $record, array $lineItems, string $method)
+    {
+        try {
+            $checkout = $this->payMongo->createCheckoutSession([
+                'line_items'           => $lineItems,
+                'payment_method_types' => ['qrph', 'gcash', 'paymaya'],
+                'success_url'          => route('rentals.pay.callback', ['rental' => $record->id]) . '?status=success',
+                'cancel_url'           => route('rentals.pay.cancel', ['rental' => $record->id]),
+                'description'          => 'Equipment Rental #' . $record->id,
+            ]);
+
+            $record->update([
+                'payment_reference' => $checkout['id'] ?? null,
+            ]);
+
+            return redirect()->away($checkout['checkout_url']);
+        } catch (\Throwable $e) {
+            Log::error('PayMongo Checkout Error: ' . $e->getMessage());
+            return redirect()->route('rentals.index')
+                ->with('warning', 'Rental submitted, but cashless checkout could not be created. You can pay via cash at the hall.');
+        }
     }
 
     public function paymentCallback(Request $request, EquipmentRental $rental)
     {
         abort_unless($rental->user_id === $request->user()->id, 403);
 
-        $this->confirmPayment($rental, 'equipment_rentals');
+        // PayMongo redirects the payer here. Never trust the redirect alone —
+        // ask PayMongo's API whether the checkout session was actually paid.
+        $this->verifyAndConfirm($rental);
 
-        if ($rental->payment_status === 'paid') {
-            return redirect()->route('rentals.receipt', $rental)
-                ->with('success', 'Payment confirmed. Here is your receipt and claim code.');
+        if ($rental->fresh()->payment_status === 'paid') {
+            return redirect()->route('rentals.index')
+                ->with('success', 'Payment successful! Your rental request is pending approval.');
         }
 
         return redirect()->route('rentals.index')
-            ->with('error', 'We could not confirm your payment yet. If you completed it, check back shortly — otherwise you can try paying again.');
-    }
-
-    public function paymentCancelled(Request $request, EquipmentRental $rental)
-    {
-        abort_unless($rental->user_id === $request->user()->id, 403);
-
-        return redirect()->route('rentals.index')
-            ->with('error', 'Payment was not completed. You can try paying again from My Rentals.');
-    }
-
-    public function retryPayment(Request $request, EquipmentRental $rental)
-    {
-        abort_unless($rental->user_id === $request->user()->id, 403);
-        abort_if($rental->payment_status === 'paid', 400);
-        abort_if($rental->payment_method === 'cash', 400);
-
-        $rental->load('items.equipment');
-
-        $lineItems = $rental->items->map(fn ($line) => [
-            'name'     => $line->equipment->name,
-            'amount'   => PayMongoService::toCentavos($line->equipment->fee ?? 0),
-            'currency' => 'PHP',
-            'quantity' => $line->quantity,
-        ])->all();
-
-        $lineItems[] = PayMongoService::transactionFeeLineItem();
-
-        return $this->startCheckout(
-            $rental,
-            $lineItems,
-            "Equipment rental #{$rental->id} — Barangay San Jose",
-            route('rentals.pay.callback', $rental),
-            route('rentals.pay.cancel', $rental),
-        );
+            ->with('warning', 'We could not confirm your payment yet. If you already paid, the confirmation usually arrives within a few minutes.');
     }
 
     /**
-     * Resident asks to cancel a paid rental (or return it early) and get a
-     * refund. This only records the request — an admin reviews it, sets the
-     * final amount and processes the payout from the Refunds queue.
+     * Re-check the checkout session with PayMongo, then confirm through the
+     * shared PaymentConfirmer (same idempotent path the webhook uses).
      */
-    public function requestRefund(Request $request, EquipmentRental $rental)
+    private function verifyAndConfirm(EquipmentRental $rental): void
     {
-        abort_unless($rental->user_id === $request->user()->id, 403);
-
-        $rental->load('items.equipment', 'refundRequests');
-
-        if (! $rental->isRefundEligible()) {
-            return back()->with('error', 'This rental is not eligible for a refund request, or one is already in progress.');
+        if ($rental->payment_status === 'paid') {
+            return; // Webhook may have beaten us here.
         }
 
-        $estimate = RentalRefund::estimate($rental);
+        $sessionId = $rental->paymongo_checkout_session_id
+            ?: (str_starts_with((string) $rental->payment_reference, 'cs_') ? $rental->payment_reference : null);
 
-        if ($estimate['refundable'] <= 0) {
-            return back()->with('error', 'The rental period is already complete, so no refund applies.');
+        if (! $sessionId) {
+            return;
         }
 
-        $validated = $request->validate([
-            'reason' => ['required', 'string', 'min:10', 'max:1000'],
-        ]);
+        try {
+            $session = $this->payMongo->retrieveCheckoutSession($sessionId);
 
-        $refund = $rental->refundRequests()->create([
-            'user_id'          => $request->user()->id,
-            'reason'           => $validated['reason'],
-            'type'             => $estimate['type'],
-            'status'           => 'requested',
-            'estimated_amount' => $estimate['refundable'],
-        ]);
-
-        $refund->load('rental.items.equipment', 'user');
-
-        Notify::send($request->user(), new RefundRequestStatusNotification($refund, 'submitted'));
-
-        foreach (User::where('role', 'admin')->get() as $admin) {
-            Notify::send($admin, new RefundRequestStatusNotification($refund, 'admin_new'));
+            if ($this->payMongo->isPaid($session)) {
+                app(\App\Services\PaymentConfirmer::class)->confirm(
+                    $rental,
+                    (string) ($this->payMongo->paidChannel($session) ?? 'qrph'),
+                    (string) ($this->payMongo->paidReference($session) ?? ''),
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::error('PayMongo callback verification failed', [
+                'rental_id' => $rental->id,
+                'error' => $e->getMessage(),
+            ]);
         }
+    }
 
-        return back()->with('success', 'Your cancellation / refund request has been submitted. The barangay will review it shortly.');
+    public function paymentCancelled(EquipmentRental $rental)
+    {
+        return redirect()->route('rentals.index')
+            ->with('info', 'Payment was cancelled. You can retry anytime.');
     }
 
     public function receipt(Request $request, EquipmentRental $rental)
     {
         abort_unless($rental->user_id === $request->user()->id, 403);
-        abort_unless($rental->claim_code, 404);
-
-        $rental->load('items.equipment');
-
-        $lines = $rental->items->map(fn ($line) => [
-            'label' => "{$line->quantity}× {$line->equipment->name}",
-            'value' => '₱' . number_format(($line->equipment->fee ?? 0) * $line->quantity, 2),
-        ])->all();
-
-        if ($rental->payment_method !== 'cash') {
-            $lines[] = ['label' => 'Transaction Fee', 'value' => '₱' . number_format(PayMongoService::transactionFee(), 2)];
-        }
 
         $receipt = [
             'title'            => 'Equipment Rental Receipt',
             'claimCode'        => $rental->claim_code,
             'residentName'     => $request->user()->name,
             'date'             => $rental->created_at,
-            'lines'            => $lines,
-            'amount'           => $rental->amount_due,
+            'lines'            => $rental->items->map(fn ($item) => [
+                'label' => $item->quantity . '× ' . $item->equipment->name,
+                'value' => '₱' . number_format($item->equipment->fee * $item->quantity, 2),
+            ])->all(),
+            'amount'           => $rental->amount_due ?? 0,
             'paymentMethod'    => $rental->payment_method,
-            'paymentChannel'   => $rental->payment_channel,
+            'paymentChannel'   => null,
             'paymentReference' => $rental->payment_reference,
             'note'             => 'Present this receipt and claim code to the barangay hall once your rental is approved.',
             'backRoute'        => route('rentals.index'),
@@ -265,67 +264,31 @@ class EquipmentRentalController extends Controller
         return view('receipts.show', compact('receipt'));
     }
 
-    private function startCheckout(
-        EquipmentRental $record,
-        array $lineItems,
-        string $description,
-        string $successUrl,
-        string $cancelUrl,
-    ) {
-        try {
-            $session = $this->payMongo->createCheckoutSession(
-                $lineItems,
-                PayMongoService::methodTypesFor($record->payment_method),
-                $description,
-                $successUrl,
-                $cancelUrl,
-                "rental-{$record->id}",
-            );
-        } catch (\Throwable $e) {
-            Log::error('PayMongo checkout session creation failed', ['error' => $e->getMessage(), 'rental_id' => $record->id]);
-
-            return redirect()->route('rentals.index')
-                ->with('error', 'We could not start the online payment right now. Please try again in a moment, or choose Cash instead.');
-        }
-
-        $record->update(['paymongo_checkout_session_id' => $session['id']]);
-
-        return redirect()->away($session['checkout_url']);
-    }
-
-    private function confirmPayment(EquipmentRental $rental, string $table): void
+    public function retryPayment(EquipmentRental $rental)
     {
-        if ($rental->payment_status === 'paid' || ! $rental->paymongo_checkout_session_id) {
-            return;
+        if ($rental->payment_status === 'paid') {
+            return redirect()->route('rentals.index')->with('info', 'This rental has already been paid.');
         }
 
-        try {
-            $session = $this->payMongo->retrieveCheckoutSession($rental->paymongo_checkout_session_id);
-        } catch (\Throwable $e) {
-            Log::error('PayMongo checkout session lookup failed', ['error' => $e->getMessage(), 'rental_id' => $rental->id]);
+        $rentalFee = max($rental->amount_due - \App\Services\PayMongoService::transactionFee(), 0);
 
-            return;
-        }
+        $lineItems = [
+            [
+                'name'     => 'Equipment Rental #' . $rental->id,
+                'amount'   => \App\Services\PayMongoService::toCentavos($rentalFee),
+                'currency' => 'PHP',
+                'quantity' => 1,
+            ],
+            \App\Services\PayMongoService::transactionFeeLineItem(),
+        ];
 
-        if ($this->payMongo->isPaid($session)) {
-            $rental->update([
-                'payment_status'    => 'paid',
-                'payment_channel'   => $this->payMongo->paidChannel($session),
-                'payment_reference' => $this->payMongo->paidReference($session),
-                'claim_code'        => ClaimCode::next($table),
-            ]);
-
-            $rental->deductStock();
-
-            $rental->load('user', 'items.equipment');
-            Notify::send($rental->user, new EquipmentRentalStatusNotification($rental, 'payment_confirmed'));
-        }
+        return $this->startCheckout($rental, $lineItems, $rental->payment_method ?? 'gcash');
     }
 
     private function ensureActive(Request $request): void
     {
         if (! $request->user()->isActive()) {
-            abort(403, 'Your account is still pending review by the barangay. You cannot rent equipment yet.');
+            abort(403, 'Your account is pending verification.');
         }
     }
 }

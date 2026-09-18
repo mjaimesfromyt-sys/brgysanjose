@@ -16,10 +16,11 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
+        // 👉 Gi-apil ang 'super_admin' aron ang Admin Dashboard ang moabli
         return match ($user->role) {
-            'admin'    => view('dashboards.admin', $this->adminData()),
-            'official' => view('dashboards.official', $this->officialData()),
-            default    => view('dashboards.resident', $this->residentData($user)),
+            'admin', 'super_admin' => view('dashboards.admin', $this->adminData()),
+            'official'             => view('dashboards.official', $this->officialData()),
+            default                => view('dashboards.resident', $this->residentData($user)),
         };
     }
 
@@ -70,7 +71,6 @@ class DashboardController extends Controller
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        // Fixed order so a status keeps its colour slot even when a count is zero.
         return collect(['pending' => 'Pending', 'validated' => 'Validated', 'claimed' => 'Claimed', 'rejected' => 'Rejected'])
             ->map(fn ($label, $key) => [
                 'label' => $label,

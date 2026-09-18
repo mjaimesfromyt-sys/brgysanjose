@@ -10,33 +10,81 @@
 
     <div class="mb-3">
         <label for="email" class="form-label">Email address</label>
-        <input id="email" type="email" name="email"
+        <input id="email"
+               type="email"
+               name="email"
                value="{{ old('email') }}"
                class="form-control @error('email') is-invalid @enderror"
-               autocomplete="email" required autofocus>
-        @error('email') <div class="invalid-feedback">{{ $message }}</div> @enderror
+               autocomplete="email"
+               required
+               autofocus>
+
+        @error('email')
+            <div class="invalid-feedback">{{ $message }}</div>
+        @enderror
     </div>
 
     <div class="mb-3">
         <label for="password" class="form-label">Password</label>
-        <input id="password" type="password" name="password"
+        <input id="password"
+               type="password"
+               name="password"
                class="form-control @error('password') is-invalid @enderror"
-               autocomplete="current-password" required>
-        @error('password') <div class="invalid-feedback">{{ $message }}</div> @enderror
+               autocomplete="current-password"
+               required>
+
+        @error('password')
+            <div class="invalid-feedback">{{ $message }}</div>
+        @enderror
     </div>
 
     <div class="mb-4 form-check">
-        <input type="checkbox" name="remember" id="remember" class="form-check-input">
-        <label for="remember" class="form-check-label">Keep me logged in</label>
+        <input type="checkbox"
+               name="remember"
+               id="remember"
+               class="form-check-input">
+
+        <label for="remember" class="form-check-label">
+            Keep me logged in
+        </label>
     </div>
 
-    <button type="submit" class="btn btn-primary w-100 btn-lg">Log in</button>
+    <div class="text-end mb-3">
+        <a href="{{ route('password.request') }}" class="small text-decoration-none">
+            Forgot password?
+        </a>
+    </div>
+
+    {{-- Cloudflare Turnstile --}}
+    <div class="mb-4">
+        <div class="cf-turnstile"
+             data-sitekey="{{ config('services.turnstile.site_key') }}">
+        </div>
+
+        @error('cf-turnstile-response')
+            <div class="text-danger small mt-2">
+                {{ $message }}
+            </div>
+        @enderror
+    </div>
+
+    <button type="submit" class="btn btn-primary w-100 btn-lg">
+        Log in
+    </button>
 </form>
 
 <hr class="my-4">
 
 <p class="text-center mb-0">
     No account yet?
-    <a href="{{ route('register') }}" class="fw-semibold text-decoration-none">Create one</a>
+    <a href="{{ route('register') }}"
+       class="fw-semibold text-decoration-none">
+        Create one
+    </a>
 </p>
 @endsection
+
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+        async
+        defer>
+</script>

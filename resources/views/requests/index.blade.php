@@ -53,7 +53,7 @@
                                     @if ($req->status === 'validated')
                                         <div class="text-muted small">Present this at the hall</div>
                                     @endif
-                                @elseif ($req->payment_method !== 'cash' && $req->payment_status === 'unpaid')
+                                @elseif ($req->status !== 'rejected' && $req->payment_method !== 'cash' && $req->payment_status === 'unpaid')
                                     <form method="POST" action="{{ route('requests.pay.retry', $req) }}">
                                         @csrf
                                         <button class="btn btn-sm btn-outline-primary">Pay now</button>

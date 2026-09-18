@@ -4,10 +4,14 @@ namespace App\Notifications;
 
 use App\Models\RefundRequest;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 
-class RefundRequestStatusNotification extends Notification
+class RefundRequestStatusNotification extends Notification implements ShouldQueue
 {
+    use Queueable;
+
     /**
      * @param 'submitted'|'admin_new'|'approved'|'rejected'|'refunded' $event
      */

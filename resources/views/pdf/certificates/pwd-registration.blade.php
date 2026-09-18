@@ -1,0 +1,26 @@
+@extends('pdf.layouts.letterhead')
+@section('title', 'BARANGAY CERTIFICATION')
+@section('body')
+@php
+    $subject = $requestModel->subject_name ?: $resident->name;
+    $purokFormatted = str_starts_with(strtolower($resident->purok ?? ''), 'purok') ? $resident->purok : 'Purok ' . ($resident->purok ?? '1');
+    $ageDisplay = !empty($residentAge) ? $residentAge . ' years old' : 'of legal age';
+    $disability = $requestModel->disability_type ? ' (' . strtoupper($requestModel->disability_type) . ')' : '';
+    $requester = $requestModel->requester_name ?: $resident->name;
+@endphp
+    <div class="body-p">
+        This is to certify that <strong>{{ strtoupper($subject) }}</strong>, {{ $ageDisplay }}, Filipino, is a bona fide resident of {{ $purokFormatted }}, San Jose, Talibon, Bohol.
+    </div>
+    <div class="body-p">
+        This is to certify further that the above named person was a member of the <strong>Person With Disabilities{!! $disability !!}</strong> with Control No. <strong>{{ $requestModel->control_no ?? '__________' }}</strong> at San Jose, Talibon, Bohol.
+    </div>
+    <div class="body-p">
+        This Barangay Certification is being issued upon the request of <strong>{{ strtoupper($requester) }}</strong> for whatever legal purpose/s it may serve him/her best.
+    </div>
+    <div class="body-p" style="margin-bottom: 10pt;">
+        Issued this <strong>{{ now()->format('jS') }}</strong> day of <strong>{{ now()->format('F, Y') }}</strong> at San Jose, Talibon, Bohol.
+    </div>
+@endsection
+@section('signatories')
+    @include('pdf.partials.sig-a')
+@endsection

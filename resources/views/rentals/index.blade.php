@@ -61,7 +61,7 @@
                             <td>
                                 @if ($rental->claim_code)
                                     <a href="{{ route('rentals.receipt', $rental) }}" class="small fw-semibold text-decoration-none">View receipt</a>
-                                @elseif ($rental->payment_method !== 'cash' && $rental->payment_status === 'unpaid')
+                                @elseif ($rental->status !== 'rejected' && $rental->payment_method !== 'cash' && $rental->payment_status === 'unpaid')
                                     <form method="POST" action="{{ route('rentals.pay.retry', $rental) }}">
                                         @csrf
                                         <button class="btn btn-sm btn-outline-primary">Pay now</button>
@@ -100,6 +100,7 @@
                                     </div>
                                 @endif
 
+                                {{-- REFUND-HIDDEN: gitago kay ang barangay walay refund policy. Balik lang kung mo-usab.
                                 @if ($rental->isRefundEligible())
                                     <div class="mt-2">
                                         <button class="btn btn-sm btn-outline-secondary" type="button"
@@ -127,6 +128,7 @@
                                         </div>
                                     </div>
                                 @endif
+                                --}}
                             </td>
                         </tr>
                     @endforeach

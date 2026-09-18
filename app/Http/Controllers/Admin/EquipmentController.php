@@ -29,6 +29,22 @@ class EquipmentController extends Controller
         return back()->with('success', 'Equipment item added.');
     }
 
+    public function update(Request $request, Equipment $equipment)
+    {
+        $validated = $request->validate([
+            'name'        => ['required', 'string', 'max:255', 'unique:equipment,name,' . $equipment->id],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'fee'         => ['nullable', 'numeric', 'min:0'],
+            'total_stock' => ['required', 'integer', 'min:0'],
+            'is_active'   => ['nullable', 'boolean'],
+        ]);
+
+        $validated['is_active'] = $request->boolean('is_active');
+
+        $equipment->update($validated);
+
+        return back()->with('success', 'Equipment updated.');
+    }
     public function toggle(Equipment $equipment)
     {
         $equipment->update(['is_active' => ! $equipment->is_active]);

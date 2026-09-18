@@ -23,6 +23,17 @@ class AnnouncementController extends Controller
 
         $announcement = Announcement::create($data);
 
+        activity('announcements')
+            ->causedBy($request->user())
+            ->performedOn($announcement)
+            ->withProperties([
+                'action' => 'created',
+                'title' => $announcement->title,
+                'is_published' => $announcement->is_published,
+                'is_pinned' => $announcement->is_pinned,
+            ])
+            ->log('Announcement created');
+
         return back()->with('success', $this->visibilityMessage($announcement, 'posted'));
     }
 
@@ -33,7 +44,22 @@ class AnnouncementController extends Controller
 
     public function update(Request $request, Announcement $announcement)
     {
+        $oldTitle = $announcement->title;
+        $oldPublished = $announcement->is_published;
+
         $announcement->update($this->validateAnnouncement($request));
+
+        activity('announcements')
+            ->causedBy($request->user())
+            ->performedOn($announcement)
+            ->withProperties([
+                'action' => 'updated',
+                'old_title' => $oldTitle,
+                'new_title' => $announcement->title,
+                'old_published' => $oldPublished,
+                'new_published' => $announcement->is_published,
+            ])
+            ->log('Announcement updated');
 
         return redirect()
             ->route('admin.announcements.index')
@@ -44,18 +70,39 @@ class AnnouncementController extends Controller
      * One-click escape hatch for a post stuck as a draft or scheduled into
      * the future: force it live right now.
      */
-    public function publishNow(Announcement $announcement)
+    public function publishNow(Request $request, Announcement $announcement)
     {
         $announcement->update([
             'is_published' => true,
             'published_at' => now(),
         ]);
 
-        return back()->with('success', "“{$announcement->title}” is now live on the homepage.");
+        activity('announcements')
+            ->causedBy($request->user())
+            ->performedOn($announcement)
+            ->withProperties([
+                'action' => 'published',
+                'published_at' => now()->toDateTimeString(),
+            ])
+            ->log('Announcement published');
+
+        return back()->with(
+            'success',
+            "“{$announcement->title}” is now live on the homepage."
+        );
     }
 
-    public function destroy(Announcement $announcement)
+    public function destroy(Request $request, Announcement $announcement)
     {
+        activity('announcements')
+            ->causedBy($request->user())
+            ->performedOn($announcement)
+            ->withProperties([
+                'action' => 'deleted',
+                'title' => $announcement->title,
+            ])
+            ->log('Announcement deleted');
+
         $announcement->delete();
 
         return back()->with('success', 'Announcement deleted.');

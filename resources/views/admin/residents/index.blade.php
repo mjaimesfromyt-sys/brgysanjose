@@ -47,8 +47,31 @@
                             <td>
                                 {{ $user->address ?? '—' }}
                                 @if ($user->purok)
-                                    <div class="text-muted small">Purok: {{ $user->purok }}</div>
+                                    <div class="text-muted small">Purok: <strong>{{ $user->purok }}</strong></div>
                                 @endif
+                                @if ($user->id_type)
+                                    <div class="mt-1">
+                                        <span class="badge bg-light text-dark border">
+                                            {{ $user->id_type }}: <strong>{{ $user->id_number }}</strong>
+                                        </span>
+                                    </div>
+                                @endif
+                                @if ($user->birthdate)
+                                    <div class="text-muted small mt-1">
+                                        Birthdate: {{ \Carbon\Carbon::parse($user->birthdate)->format('M d, Y') }} ({{ \Carbon\Carbon::parse($user->birthdate)->age }} y/o) &bull; {{ $user->civil_status ?? 'Single' }}
+                                    </div>
+                                @endif
+                                
+                                
+                                @if ($user->id_photo_front)
+                                    <div class="mt-2 mb-1">
+                                        <button type="button" onclick="openIdViewer('/{{ ltrim($user->id_photo_front, '/') }}', '{{ addslashes($user->name) }}', '{{ $user->id_type ?? 'Government ID' }}', '{{ $user->id_number ?? '' }}', '{{ $user->purok ?? '' }}')" class="btn btn-sm btn-outline-success py-1 px-3 rounded-pill fw-semibold shadow-sm">
+                                            Inspect Valid ID Photo &rarr;
+                                        </button>
+                                        <a href="/{{ ltrim($user->id_photo_front, '/') }}" target="_blank" class="small text-muted ms-1 text-decoration-none" title="Open original photo in new tab">&nearr;</a>
+                                    </div>
+                                @endif
+
                                 @if ($user->declared_type)
                                     <div class="text-muted small">
                                         Declared: {{ $user->declared_type === 'resident' ? 'Resident' : 'Non-resident' }}
@@ -120,4 +143,49 @@
         </div>
     </div>
 @endif
+
+{{-- DEDICATED ID PHOTO LIGHTBOX VIEWER --}}
+<div id="idViewerOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.82); z-index:99999; align-items:center; justify-content:center; padding:20px;" onclick="if(event.target === this) closeIdViewer()">
+    <div style="background:#ffffff; border-radius:16px; max-width:820px; width:100%; max-height:90vh; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35);" onclick="event.stopPropagation()">
+        <div style="padding:16px 20px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f8fafc;">
+            <div>
+                <h6 id="idViewerTitle" style="font-weight:bold; margin:0; color:#0f172a; font-size:16px;">Valid ID Verification</h6>
+                <div id="idViewerSub" style="font-size:12.5px; color:#64748b; margin-top:2px;"></div>
+            </div>
+            <button type="button" onclick="closeIdViewer()" style="border:none; background:transparent; font-size:28px; line-height:1; cursor:pointer; color:#64748b; padding:0 6px;">&times;</button>
+        </div>
+        <div style="padding:20px; text-align:center; overflow-y:auto; background:#f1f5f9; display:flex; align-items:center; justify-content:center; min-height:320px;">
+            <img id="idViewerImg" src="" alt="Valid ID Preview" style="max-height:65vh; max-width:100%; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.12); border:1.5px solid #cbd5e1; object-fit:contain;">
+        </div>
+        <div style="padding:12px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f8fafc;">
+            <a id="idViewerExternalLink" href="#" target="_blank" style="font-size:13px; font-weight:600; color:#16a34a; text-decoration:none;">
+                Open Full Resolution in New Tab &nearr;
+            </a>
+            <button type="button" onclick="closeIdViewer()" style="padding:6px 18px; border-radius:20px; border:1px solid #cbd5e1; background:#ffffff; font-size:13px; font-weight:600; cursor:pointer; color:#334155;">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openIdViewer(url, name, type, num, purok) {
+    document.getElementById("idViewerImg").src = url;
+    document.getElementById("idViewerTitle").textContent = "Valid ID Verification: " + name;
+    document.getElementById("idViewerSub").textContent = (type || "Government ID") + (num ? " • ID No: " + num : "") + (purok ? " • " + purok : "");
+    document.getElementById("idViewerExternalLink").href = url;
+    const overlay = document.getElementById("idViewerOverlay");
+    overlay.style.display = "flex";
+}
+function closeIdViewer() {
+    const overlay = document.getElementById("idViewerOverlay");
+    if (overlay) overlay.style.display = "none";
+    const img = document.getElementById("idViewerImg");
+    if (img) img.src = "";
+}
+document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape") closeIdViewer();
+});
+</script>
+
 @endsection

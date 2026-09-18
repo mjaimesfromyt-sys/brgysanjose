@@ -21,6 +21,12 @@
 /storage/*.key
 /storage/pail
 /vendor
+/live-site/
+/backup/
+/.freebuff/
+/barangayapp-hostinger.zip
+/barangay_backups.zip
+*.bak
 _ide_helper.php
 Homestead.json
 Homestead.yaml

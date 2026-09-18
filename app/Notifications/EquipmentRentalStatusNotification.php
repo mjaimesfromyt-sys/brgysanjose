@@ -5,10 +5,14 @@ namespace App\Notifications;
 use App\Models\EquipmentRental;
 use App\Services\PayMongoService;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 
-class EquipmentRentalStatusNotification extends Notification
+class EquipmentRentalStatusNotification extends Notification implements ShouldQueue
 {
+    use Queueable;
+
     /**
      * @param 'approved'|'released'|'rejected'|'payment_confirmed' $event
      */

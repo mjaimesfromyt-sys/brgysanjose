@@ -24,14 +24,14 @@
 @else
     <div class="table-wrap">
         <div class="table-responsive">
-            <table class="table">
+            <table class="table align-middle">
                 <thead>
                     <tr>
                         <th>Resident</th>
                         <th>Items</th>
                         <th>Dates</th>
                         <th>Purpose</th>
-                        <th>Payment</th>
+                        <th>{{ $status === 'rejected' ? 'Status' : 'Payment' }}</th>
                         @if (in_array($status, ['approved', 'released', 'returned']))
                             <th>Claim code</th>
                         @endif
@@ -78,11 +78,21 @@
 
                             @if ($status === 'pending')
                                 <td class="text-end" style="min-width:240px">
-                                    <div class="d-flex gap-2 justify-content-end">
-                                        <form method="POST" action="{{ route('admin.rentals.approve', $rental) }}">
-                                            @csrf
-                                            <button class="btn btn-sm btn-success">Approve</button>
-                                        </form>
+                                    <div class="d-flex gap-2 justify-content-end align-items-center">
+                                        <!-- 👉 DILI MA-CLICK ANG APPROVE KON UNPAID PA -->
+                                        @if ($rental->payment_status === 'unpaid')
+                                            <button type="button" class="btn btn-sm btn-success opacity-50" disabled 
+                                                    title="Cannot approve: Payment must be marked as paid first." 
+                                                    style="cursor: not-allowed;">
+                                                Approve
+                                            </button>
+                                        @else
+                                            <form method="POST" action="{{ route('admin.rentals.approve', $rental) }}" class="m-0">
+                                                @csrf
+                                                <button class="btn btn-sm btn-success">Approve</button>
+                                            </form>
+                                        @endif
+
                                         <button type="button" class="btn btn-sm btn-outline-danger"
                                                 data-bs-toggle="collapse" data-bs-target="#reject-{{ $rental->id }}">
                                             Reject

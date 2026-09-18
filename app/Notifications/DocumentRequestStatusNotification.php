@@ -5,10 +5,14 @@ namespace App\Notifications;
 use App\Models\DocumentRequest;
 use App\Services\PayMongoService;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 
-class DocumentRequestStatusNotification extends Notification
+class DocumentRequestStatusNotification extends Notification implements ShouldQueue
 {
+    use Queueable;
+
     /**
      * @param 'validated'|'rejected'|'payment_confirmed' $event
      */

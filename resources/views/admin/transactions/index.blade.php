@@ -10,8 +10,13 @@
 <div class="row g-3">
     <div class="col-lg-7">
         <div class="card-soft h-100">
-            <div class="p-3 border-bottom">
+            <div class="p-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
                 <h2 class="h6 mb-0 fw-bold">All transaction types</h2>
+                <div class="position-relative" style="min-width: 220px;">
+                    <input type="search" id="typeSearch" class="form-control form-control-sm"
+                           placeholder="Search document type..." autocomplete="off">
+                    <div class="form-text small mb-0 mt-1 d-none" id="typeSearchCount"></div>
+                </div>
             </div>
 
             @if ($types->isEmpty())
@@ -33,7 +38,7 @@
                         </thead>
                         <tbody>
                             @foreach ($types as $type)
-                                <tr>
+                                <tr class="type-row" data-search="{{ strtolower($type->name . ' ' . ($type->slug ?? '')) }}">
                                     <td>
                                         <span class="fw-semibold">{{ $type->name }}</span>
                                         @unless ($type->is_active)
@@ -106,3 +111,29 @@
     </div>
 </div>
 @endsection
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const box   = document.getElementById('typeSearch');
+    const count = document.getElementById('typeSearchCount');
+    if (!box) return;
+    const rows = Array.from(document.querySelectorAll('.type-row'));
+
+    box.addEventListener('input', function () {
+        const q = this.value.trim().toLowerCase();
+        let shown = 0;
+        rows.forEach(function (row) {
+            const match = !q || (row.dataset.search || '').indexOf(q) !== -1;
+            row.style.display = match ? '' : 'none';
+            if (match) shown++;
+        });
+        if (q) {
+            count.textContent = shown + ' of ' + rows.length + ' shown';
+            count.classList.remove('d-none');
+        } else {
+            count.classList.add('d-none');
+        }
+    });
+});
+</script>

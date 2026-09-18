@@ -47,15 +47,20 @@ class RefundRequestController extends Controller
             return back()->with('error', 'This request has already been reviewed.');
         }
 
-        $rental   = $refundRequest->rental;
+        $rental = $refundRequest->rental;
         $estimate = RentalRefund::estimate($rental);
 
         $validated = $request->validate([
             'amount'        => ['required', 'numeric', 'min:0', 'max:' . $estimate['refundable']],
             'admin_remarks' => ['nullable', 'string', 'max:500'],
         ], [
-            'amount.max' => 'The refund cannot exceed the refundable rental fee (₱' . number_format($estimate['refundable'], 2) . ').',
+            'amount.max' => 'The refund cannot exceed the refundable rental fee (₱' .
+                number_format($estimate['refundable'], 2) . ').',
         ]);
+
+        $oldStatus = $refundRequest->status;
+        $oldRentalStatus = $rental->status;
+        $paymentStatus = $rental->payment_status;
 
         $refundRequest->update([
             'status'        => 'approved',
@@ -64,20 +69,50 @@ class RefundRequestController extends Controller
             'admin_remarks' => $validated['admin_remarks'] ?? null,
         ]);
 
-        // Close out the rental itself and put the stock back.
         if ($rental->status === 'released') {
-            $rental->update(['status' => 'returned', 'returned_at' => now()]);
+            $rental->update([
+                'status' => 'returned',
+                'returned_at' => now(),
+            ]);
         } else {
-            $rental->update(['status' => 'cancelled']);
+            $rental->update([
+                'status' => 'cancelled',
+            ]);
         }
+
+        $stockRestored = false;
+
         if ($rental->payment_status === 'paid') {
             $rental->restoreStock();
+            $stockRestored = true;
         }
 
-        $refundRequest->load('rental.items.equipment', 'user');
-        Notify::send($refundRequest->user, new RefundRequestStatusNotification($refundRequest, 'approved'));
+        activity('refund_requests')
+            ->causedBy($request->user())
+            ->performedOn($refundRequest)
+            ->withProperties([
+                'action' => 'approved',
+                'old_status' => $oldStatus,
+                'new_status' => 'approved',
+                'refund_amount' => (float) $validated['amount'],
+                'old_rental_status' => $oldRentalStatus,
+                'new_rental_status' => $rental->fresh()->status,
+                'payment_status' => $paymentStatus,
+                'stock_restored' => $stockRestored,
+            ])
+            ->log('Refund request approved');
 
-        return back()->with('success', 'Refund approved. Now process the payout from the "To pay out" tab.');
+        $refundRequest->load('rental.items.equipment', 'user');
+
+        Notify::send(
+            $refundRequest->user,
+            new RefundRequestStatusNotification($refundRequest, 'approved')
+        );
+
+        return back()->with(
+            'success',
+            'Refund approved. Now process the payout from the "To pay out" tab.'
+        );
     }
 
     public function reject(Request $request, RefundRequest $refundRequest)
@@ -92,23 +127,37 @@ class RefundRequestController extends Controller
             'admin_remarks.required' => 'Please give the resident a reason for the rejection.',
         ]);
 
+        $oldStatus = $refundRequest->status;
+
         $refundRequest->update([
             'status'        => 'rejected',
             'reviewed_by'   => $request->user()->id,
             'admin_remarks' => $validated['admin_remarks'],
         ]);
 
-        $refundRequest->load('rental.items.equipment', 'user');
-        Notify::send($refundRequest->user, new RefundRequestStatusNotification($refundRequest, 'rejected'));
+        activity('refund_requests')
+            ->causedBy($request->user())
+            ->performedOn($refundRequest)
+            ->withProperties([
+                'action' => 'rejected',
+                'old_status' => $oldStatus,
+                'new_status' => 'rejected',
+            ])
+            ->log('Refund request rejected');
 
-        return back()->with('success', 'Refund request rejected and the resident has been notified.');
+        $refundRequest->load('rental.items.equipment', 'user');
+
+        Notify::send(
+            $refundRequest->user,
+            new RefundRequestStatusNotification($refundRequest, 'rejected')
+        );
+
+        return back()->with(
+            'success',
+            'Refund request rejected and the resident has been notified.'
+        );
     }
 
-    /**
-     * Pay the refund out. Cash refunds just record a reference. Online
-     * refunds call the PayMongo Refunds API, with a manual reference as the
-     * fallback if the API call fails or there is no payment on record.
-     */
     public function process(Request $request, RefundRequest $refundRequest)
     {
         if ($refundRequest->status !== 'approved') {
@@ -119,12 +168,12 @@ class RefundRequestController extends Controller
             'manual_reference' => ['nullable', 'string', 'max:190'],
         ]);
 
-        $rental   = $refundRequest->rental;
-        $isCash   = $rental->payment_method === 'cash';
-        $manual   = trim((string) ($validated['manual_reference'] ?? ''));
-        $amount   = (float) $refundRequest->amount;
+        $rental = $refundRequest->rental;
+        $isCash = $rental->payment_method === 'cash';
+        $manual = trim((string) ($validated['manual_reference'] ?? ''));
+        $amount = (float) $refundRequest->amount;
+        $oldStatus = $refundRequest->status;
 
-        // Nothing to move.
         if ($amount <= 0) {
             $refundRequest->update([
                 'status'           => 'refunded',
@@ -132,16 +181,33 @@ class RefundRequestController extends Controller
                 'refund_reference' => 'No refund due (₱0.00)',
                 'processed_at'     => now(),
             ]);
+
+            activity('refund_requests')
+                ->causedBy($request->user())
+                ->performedOn($refundRequest)
+                ->withProperties([
+                    'action' => 'processed',
+                    'old_status' => $oldStatus,
+                    'new_status' => 'refunded',
+                    'refund_method' => $isCash ? 'cash' : 'online',
+                    'refund_amount' => 0,
+                    'processing_type' => 'no_refund_due',
+                ])
+                ->log('Refund processed');
+
             $this->notifyRefunded($refundRequest);
 
-            return back()->with('success', 'Marked as refunded (₱0.00 — nothing to pay out).');
+            return back()->with(
+                'success',
+                'Marked as refunded (₱0.00 — nothing to pay out).'
+            );
         }
 
-        // Cash, or an admin who chose to record the payout manually.
         if ($isCash || $manual !== '') {
             if ($manual === '') {
                 throw ValidationException::withMessages([
-                    'manual_reference' => 'Enter a reference for the cash refund (e.g. OR number or "handed to resident").',
+                    'manual_reference' =>
+                        'Enter a reference for the cash refund (e.g. OR number or "handed to resident").',
                 ]);
             }
 
@@ -151,14 +217,33 @@ class RefundRequestController extends Controller
                 'refund_reference' => $manual,
                 'processed_at'     => now(),
             ]);
+
+            activity('refund_requests')
+                ->causedBy($request->user())
+                ->performedOn($refundRequest)
+                ->withProperties([
+                    'action' => 'processed',
+                    'old_status' => $oldStatus,
+                    'new_status' => 'refunded',
+                    'refund_method' => $isCash ? 'cash' : 'online',
+                    'refund_amount' => $amount,
+                    'processing_type' => 'manual',
+                ])
+                ->log('Refund processed');
+
             $this->notifyRefunded($refundRequest);
 
-            return back()->with('success', 'Refund recorded and the resident has been notified.');
+            return back()->with(
+                'success',
+                'Refund recorded and the resident has been notified.'
+            );
         }
 
-        // Online, automatic via PayMongo.
         if (! $rental->payment_reference) {
-            return back()->with('error', 'No PayMongo payment is on record for this rental. Refund it manually and enter the reference.');
+            return back()->with(
+                'error',
+                'No PayMongo payment is on record for this rental. Refund it manually and enter the reference.'
+            );
         }
 
         try {
@@ -174,8 +259,11 @@ class RefundRequestController extends Controller
                 'error'             => $e->getMessage(),
             ]);
 
-            return back()->with('error', 'PayMongo refused the refund: ' . $e->getMessage()
-                . ' You can retry, or refund manually and enter the reference below.');
+            return back()->with(
+                'error',
+                'PayMongo refused the refund: ' . $e->getMessage() .
+                ' You can retry, or refund manually and enter the reference below.'
+            );
         }
 
         $refundRequest->update([
@@ -185,14 +273,36 @@ class RefundRequestController extends Controller
             'refund_reference'   => $result['id'],
             'processed_at'       => now(),
         ]);
+
+        activity('refund_requests')
+            ->causedBy($request->user())
+            ->performedOn($refundRequest)
+            ->withProperties([
+                'action' => 'processed',
+                'old_status' => $oldStatus,
+                'new_status' => 'refunded',
+                'refund_method' => 'online',
+                'refund_amount' => $amount,
+                'processing_type' => 'paymongo',
+            ])
+            ->log('Refund processed');
+
         $this->notifyRefunded($refundRequest);
 
-        return back()->with('success', 'Refund of ₱' . number_format($amount, 2) . ' sent via PayMongo (' . $result['id'] . ').');
+        return back()->with(
+            'success',
+            'Refund of ₱' . number_format($amount, 2) .
+            ' sent via PayMongo (' . $result['id'] . ').'
+        );
     }
 
     private function notifyRefunded(RefundRequest $refundRequest): void
     {
         $refundRequest->load('rental.items.equipment', 'user');
-        Notify::send($refundRequest->user, new RefundRequestStatusNotification($refundRequest, 'refunded'));
+
+        Notify::send(
+            $refundRequest->user,
+            new RefundRequestStatusNotification($refundRequest, 'refunded')
+        );
     }
 }

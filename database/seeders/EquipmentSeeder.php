@@ -11,19 +11,39 @@ class EquipmentSeeder extends Seeder
     {
         $items = [
             [
-                'name'        => 'Monoblock Chair',
-                'description' => 'Standard plastic monoblock chair for events and gatherings.',
-                'total_stock' => 200,
+                'name'        => 'TENT',
+                'description' => NULL,
+                'fee'         => 1000.00,
+                'total_stock' => 2,
+                'is_active'   => true,
             ],
             [
-                'name'        => 'Folding Table',
-                'description' => 'Rectangular folding table, seats about 6–8 people.',
-                'total_stock' => 40,
+                'name'        => 'CHAIRS',
+                'description' => NULL,
+                'fee'         => 5.00,
+                'total_stock' => 130,
+                'is_active'   => true,
             ],
             [
-                'name'        => 'Event Tent (10×10)',
-                'description' => 'Portable canopy tent for outdoor events.',
-                'total_stock' => 8,
+                'name'        => 'TABLES',
+                'description' => NULL,
+                'fee'         => 99.99,
+                'total_stock' => 9,
+                'is_active'   => false,
+            ],
+            [
+                'name'        => 'DURABLE TABLES',
+                'description' => NULL,
+                'fee'         => 100.00,
+                'total_stock' => 9,
+                'is_active'   => true,
+            ],
+            [
+                'name'        => 'CEMENT MIXER',
+                'description' => NULL,
+                'fee'         => 600.00,
+                'total_stock' => 1,
+                'is_active'   => true,
             ],
         ];
 

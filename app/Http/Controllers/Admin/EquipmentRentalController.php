@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Admin;
+use App\Events\ResidentStatusUpdatedEvent;
 
 use App\Http\Controllers\Controller;
 use App\Models\Equipment;
@@ -42,17 +43,33 @@ class EquipmentRentalController extends Controller
             return back()->with('error', 'This rental has already been reviewed.');
         }
 
-        foreach ($rental->items as $line) {
-            $available = $line->equipment->availableFor(
-                $rental->start_date->format('Y-m-d'),
-                $rental->end_date->format('Y-m-d'),
-                $rental->id
+        // Dili maka-approve kon wala pa mabayri
+        if ($rental->payment_status === 'unpaid') {
+            return back()->with(
+                'error',
+                'Cannot approve rental: Payment must be confirmed or marked as paid first.'
             );
+        }
 
-            if ($line->quantity > $available) {
-                return back()->with('error', "Cannot approve: only {$available} {$line->equipment->name}(s) available for these dates.");
+        // 👉 Susiha lang ang stock kon wala pa na-deduct daan sa payment
+        if ($rental->payment_status !== 'paid') {
+            foreach ($rental->items as $line) {
+                $available = $line->equipment->availableFor(
+                    $rental->start_date->format('Y-m-d'),
+                    $rental->end_date->format('Y-m-d'),
+                    $rental->id
+                );
+
+                if ($line->quantity > $available) {
+                    return back()->with(
+                        'error',
+                        "Cannot approve: only {$available} {$line->equipment->name}(s) available for these dates."
+                    );
+                }
             }
         }
+
+        $oldStatus = $rental->status;
 
         $rental->update([
             'status'      => 'approved',
@@ -60,10 +77,24 @@ class EquipmentRentalController extends Controller
             'claim_code'  => $rental->claim_code ?? ClaimCode::next('equipment_rentals'),
         ]);
 
-        $rental->load('user', 'items.equipment');
-        Notify::send($rental->user, new EquipmentRentalStatusNotification($rental, 'approved'));
+        activity('equipment_rentals')
+            ->causedBy($request->user())
+            ->performedOn($rental)
+            ->withProperties([
+                'action'     => 'approved',
+                'old_status' => $oldStatus,
+                'new_status' => 'approved',
+            ])
+            ->log('Equipment rental approved');
 
-        return back()->with('success', 'Rental approved.');
+        $rental->load('user', 'items.equipment');
+
+        Notify::send(
+            $rental->user,
+            new EquipmentRentalStatusNotification($rental, 'approved')
+        );
+
+        return back()->with('success', 'Rental approved successfully.');
     }
 
     public function reject(Request $request, EquipmentRental $rental)
@@ -76,6 +107,9 @@ class EquipmentRentalController extends Controller
             return back()->with('error', 'This rental has already been reviewed.');
         }
 
+        $oldStatus = $rental->status;
+        $oldPaymentStatus = $rental->payment_status;
+
         if ($rental->payment_status === 'paid') {
             $rental->restoreStock();
         }
@@ -86,8 +120,24 @@ class EquipmentRentalController extends Controller
             'admin_remarks' => $validated['admin_remarks'] ?? null,
         ]);
 
+        activity('equipment_rentals')
+            ->causedBy($request->user())
+            ->performedOn($rental)
+            ->withProperties([
+                'action'         => 'rejected',
+                'old_status'     => $oldStatus,
+                'new_status'     => 'rejected',
+                'payment_status' => $oldPaymentStatus,
+                'stock_restored' => $oldPaymentStatus === 'paid',
+            ])
+            ->log('Equipment rental rejected');
+
         $rental->load('user', 'items.equipment');
-        Notify::send($rental->user, new EquipmentRentalStatusNotification($rental, 'rejected'));
+
+        Notify::send(
+            $rental->user,
+            new EquipmentRentalStatusNotification($rental, 'rejected')
+        );
 
         return back()->with('success', 'Rental rejected.');
     }
@@ -95,30 +145,56 @@ class EquipmentRentalController extends Controller
     public function release(Request $request, EquipmentRental $rental)
     {
         if ($rental->status !== 'approved') {
-            return back()->with('error', 'Only approved rentals can be marked as released.');
+            return back()->with(
+                'error',
+                'Only approved rentals can be marked as released.'
+            );
         }
+
+        $oldStatus = $rental->status;
 
         $rental->update([
             'status'      => 'released',
             'released_at' => now(),
+            // Due sa katapusan nga adlaw sa rental, alas-5 PM (barangay office hours)
+            'due_at'      => \Carbon\Carbon::parse($rental->end_date)->setTime(17, 0),
             'reviewed_by' => $request->user()->id,
         ]);
 
-        $rental->load('user', 'items.equipment');
-        Notify::send($rental->user, new EquipmentRentalStatusNotification($rental, 'released'));
+        activity('equipment_rentals')
+            ->causedBy($request->user())
+            ->performedOn($rental)
+            ->withProperties([
+                'action'     => 'released',
+                'old_status' => $oldStatus,
+                'new_status' => 'released',
+            ])
+            ->log('Equipment rental released');
 
-        return back()->with('success', 'Equipment marked as released to resident.');
+        $rental->load('user', 'items.equipment');
+
+        Notify::send(
+            $rental->user,
+            new EquipmentRentalStatusNotification($rental, 'released')
+        );
+
+        return back()->with(
+            'success',
+            'Equipment marked as released to resident.'
+        );
     }
 
     public function markReturned(Request $request, EquipmentRental $rental)
     {
         if ($rental->status !== 'released') {
-            return back()->with('error', 'Only released rentals can be marked as returned.');
+            return back()->with(
+                'error',
+                'Only released rentals can be marked as returned.'
+            );
         }
 
-        if ($rental->payment_status === 'paid') {
-            $rental->restoreStock();
-        }
+        $oldStatus = $rental->status;
+        $oldPaymentStatus = $rental->payment_status;
 
         $rental->update([
             'status'      => 'returned',
@@ -126,21 +202,65 @@ class EquipmentRentalController extends Controller
             'reviewed_by' => $request->user()->id,
         ]);
 
+        $rental->restoreStock();
+
+        activity('equipment_rentals')
+            ->causedBy($request->user())
+            ->performedOn($rental)
+            ->withProperties([
+                'action'         => 'returned',
+                'old_status'     => $oldStatus,
+                'new_status'     => 'returned',
+                'payment_status' => $oldPaymentStatus,
+                'stock_restored' => $oldPaymentStatus === 'paid',
+            ])
+            ->log('Equipment rental returned');
+
         return back()->with('success', 'Equipment marked as returned.');
     }
 
-    public function markPaid(EquipmentRental $rental)
+    public function markPaid(Request $request, EquipmentRental $rental)
     {
-        if ($rental->payment_method !== 'cash' || $rental->payment_status !== 'unpaid') {
-            return back()->with('error', 'Only unpaid cash rentals can be marked paid.');
+        if (
+            $rental->payment_method !== 'cash' ||
+            $rental->payment_status !== 'unpaid'
+        ) {
+            return back()->with(
+                'error',
+                'Only unpaid cash rentals can be marked paid.'
+            );
         }
 
-        $rental->update(['payment_status' => 'paid']);
+        $oldPaymentStatus = $rental->payment_status;
+
+        $rental->update([
+            'payment_status' => 'paid',
+        ]);
+
         $rental->deductStock();
 
-        $rental->load('user', 'items.equipment');
-        Notify::send($rental->user, new EquipmentRentalStatusNotification($rental, 'payment_confirmed'));
+        activity('equipment_rentals')
+            ->causedBy($request->user())
+            ->performedOn($rental)
+            ->withProperties([
+                'action'             => 'payment_marked_paid',
+                'payment_method'     => 'cash',
+                'old_payment_status' => $oldPaymentStatus,
+                'new_payment_status' => 'paid',
+                'stock_deducted'     => true,
+            ])
+            ->log('Equipment rental cash payment marked as paid');
 
-        return back()->with('success', 'Rental marked as paid. Stock has been deducted.');
+        $rental->load('user', 'items.equipment');
+
+        Notify::send(
+            $rental->user,
+            new EquipmentRentalStatusNotification($rental, 'payment_confirmed')
+        );
+
+        return back()->with(
+            'success',
+            'Rental marked as paid. Stock has been deducted.'
+        );
     }
 }

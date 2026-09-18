@@ -32,7 +32,7 @@
                         <th>Dates</th>
                         <th>Time</th>
                         <th>Purpose</th>
-                        <th>Payment</th>
+                        <th>{{ $status === 'rejected' ? 'Status' : 'Payment' }}</th>
                         @if ($status === 'approved')<th>Claim code</th>@endif
                         @if ($status === 'pending')<th class="text-end">Decision</th>@endif
                     </tr>
@@ -73,11 +73,21 @@
 
                             @if ($status === 'pending')
                                 <td class="text-end" style="min-width:240px">
-                                    <div class="d-flex gap-2 justify-content-end">
-                                        <form method="POST" action="{{ route('admin.bookings.approve', $booking) }}">
-                                            @csrf
-                                            <button class="btn btn-sm btn-success">Approve</button>
-                                        </form>
+                                    <div class="d-flex gap-2 justify-content-end align-items-center">
+                                        <!-- 👉 Dili ma-click ang Approve kon Unpaid pa -->
+                                        @if ($booking->payment_status === 'unpaid')
+                                            <button type="button" class="btn btn-sm btn-success opacity-50" disabled 
+                                                    title="Cannot approve: Payment must be marked as paid first." 
+                                                    style="cursor: not-allowed;">
+                                                Approve
+                                            </button>
+                                        @else
+                                            <form method="POST" action="{{ route('admin.bookings.approve', $booking) }}" class="m-0">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                                            </form>
+                                        @endif
+
                                         <button type="button" class="btn btn-sm btn-outline-danger"
                                                 data-bs-toggle="collapse" data-bs-target="#reject-{{ $booking->id }}">
                                             Reject

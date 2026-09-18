@@ -15,6 +15,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
         ]);
+
+        // PayMongo cannot carry a CSRF token; its webhook is authenticated
+        // by the Paymongo-Signature header instead.
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/paymongo',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

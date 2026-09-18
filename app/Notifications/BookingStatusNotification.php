@@ -5,10 +5,14 @@ namespace App\Notifications;
 use App\Models\Booking;
 use App\Services\PayMongoService;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 
-class BookingStatusNotification extends Notification
+class BookingStatusNotification extends Notification implements ShouldQueue
 {
+    use Queueable;
+
     /**
      * @param 'approved'|'rejected'|'payment_confirmed' $event
      */

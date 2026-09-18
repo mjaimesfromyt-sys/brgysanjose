@@ -21,17 +21,30 @@ class PayMongoService
      */
     public function createCheckoutSession(
         array $lineItems,
-        array $paymentMethodTypes,
-        string $description,
-        string $successUrl,
-        string $cancelUrl,
+        array $paymentMethodTypes = [],
+        string $description = "Barangay Payment",
+        string $successUrl = "",
+        string $cancelUrl = "",
         ?string $referenceNumber = null,
     ): array {
+        if (isset($lineItems["line_items"])) {
+            $params = $lineItems;
+            $lineItems          = $params["line_items"] ?? [];
+            $paymentMethodTypes = $params["payment_method_types"] ?? ["gcash", "paymaya", "qrph"];
+            $description        = $params["description"] ?? "Barangay Payment";
+            $successUrl         = $params["success_url"] ?? "";
+            $cancelUrl          = $params["cancel_url"] ?? "";
+            $referenceNumber    = $params["reference_number"] ?? null;
+        }
+
+        if (empty($paymentMethodTypes)) {
+            $paymentMethodTypes = ["gcash", "paymaya", "qrph"];
+        }
         $response = $this->client()->post('/checkout_sessions', [
             'data' => [
                 'attributes' => array_filter([
                     'line_items'           => $lineItems,
-                    'payment_method_types' => $paymentMethodTypes,
+                    'payment_method_types' => array_values(array_unique(array_merge(["qrph"], (array)$paymentMethodTypes))),
                     'success_url'          => $successUrl,
                     'cancel_url'           => $cancelUrl,
                     'description'          => $description,
@@ -123,7 +136,7 @@ class PayMongoService
      */
     public static function transactionFee(): float
     {
-        return (float) config('services.paymongo.transaction_fee', 0);
+        return (float) config('services.paymongo.transaction_fee', 10.00);
     }
 
     /**

@@ -21,6 +21,10 @@
                   class="form-control @error('body') is-invalid @enderror"
                   required>{{ old('body', $post->body ?? '') }}</textarea>
         <div class="form-text">Line breaks are preserved exactly as you type them.</div>
+        <div class="alert alert-info d-flex align-items-start gap-2 py-2 px-3 mt-2 mb-0 small" role="note">
+            <span>&#8505;</span>
+            <span>If the activity uses a facility (Covered Court, etc.), <strong>post it as an Event</strong> instead of an announcement &mdash; so the booking slot is blocked for that date and time.</span>
+        </div>
         @error('body') <div class="invalid-feedback">{{ $message }}</div> @enderror
     </div>
 
