@@ -7,6 +7,13 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Deployment
+
+This app is deployed to Hostinger shared hosting from the `deploy/hostinger`
+branch, which GitHub Actions builds on demand. See
+[docs/DEPLOY-HOSTINGER.md](docs/DEPLOY-HOSTINGER.md) for the full setup and the
+routine release steps.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:

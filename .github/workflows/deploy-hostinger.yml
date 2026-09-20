@@ -1,118 +1,186 @@
+# Builds a deployable release and publishes it to the deploy branch that the
+# hPanel Git integration tracks.
+#
+# Hostinger shared hosting has no dependable Composer or Node toolchain, so
+# vendor/ and public/build are compiled here and committed to the deploy
+# branch. hPanel then only has to git pull.
+#
+# Run it from the Actions tab: "Deploy to Hostinger" > Run workflow.
 name: Deploy to Hostinger
 
 on:
-  push:
-    branches: [main, master]
   workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Branch, tag or SHA to build and deploy"
+        required: true
+        default: "main"
+      php_version:
+        description: "Must match hPanel > Advanced > PHP Configuration"
+        required: true
+        default: "8.3"
+        type: choice
+        options:
+          - "8.3"
+          - "8.4"
+      pull_on_hostinger:
+        description: "Trigger the hPanel auto-deploy webhook after publishing"
+        required: false
+        default: true
+        type: boolean
+
+# Two overlapping deploys would race on the same branch and could publish a
+# release built from the older ref.
+concurrency:
+  group: deploy-hostinger
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  DEPLOY_BRANCH: deploy/hostinger
 
 jobs:
-  deploy:
+  build-and-publish:
+    name: Build and publish release
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      - name: Setup PHP
+    steps:
+      - name: Check out ${{ inputs.source_ref }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+
+      - name: Set up PHP ${{ inputs.php_version }}
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
-          extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_mysql, tokenizer, bcmath, curl, fileinfo, gd, openssl, zip
+          php-version: ${{ inputs.php_version }}
+          extensions: mbstring, bcmath, pdo_mysql, gd, zip, intl, fileinfo
           coverage: none
+          tools: composer:v2
 
-      - name: Setup Node.js
+      - name: Pin Composer's platform PHP to the server version
+        # vendor/composer/platform_check.php aborts every request if the server
+        # runs an older PHP than the build did. Pinning makes the resolver pick
+        # packages that Hostinger's PHP can actually load.
+        run: composer config platform.php "${{ inputs.php_version }}"
+
+      - name: Install production PHP dependencies
+        # --no-scripts skips post-autoload-dump, which would run artisan without
+        # a real .env. Laravel rebuilds the package manifest on demand, and
+        # deploy/post-deploy.sh runs `artisan optimize` on the server anyway.
+        run: |
+          composer install \
+            --no-dev \
+            --prefer-dist \
+            --no-interaction \
+            --no-progress \
+            --optimize-autoloader \
+            --no-scripts
+
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "22"
+          cache: npm
 
-      - name: Install PHP dependencies
-        run: composer install --optimize-autoloader --no-dev --no-interaction
+      - name: Install JS dependencies
+        run: npm ci
 
-      - name: Install & build frontend
+      - name: Build front-end assets
+        run: npm run build
+
+      - name: Verify the build produced what the server needs
+        # Cheaper to fail here than to discover a broken release after hPanel
+        # has already pulled it.
         run: |
-          npm ci
-          npm run build
+          set -euo pipefail
+          test -f vendor/autoload.php \
+            || { echo "::error::composer install produced no autoloader"; exit 1; }
+          test -f public/build/manifest.json \
+            || { echo "::error::vite build produced no manifest"; exit 1; }
+          php -r 'require "vendor/autoload.php"; echo "autoloader OK\n";'
 
-      - name: Create .env
+            - name: Assemble the release tree
         run: |
-          cat > .env << 'EOF'
-          APP_NAME="Barangay San Jose"
-          APP_ENV=production
-          APP_KEY=${{ secrets.APP_KEY }}
-          APP_DEBUG=false
-          APP_URL=https://brgysanjose.site
-          APP_LOCALE=en
-          APP_FALLBACK_LOCALE=en
-          APP_FAKER_LOCALE=en_US
-          APP_MAINTENANCE_DRIVER=file
-          BCRYPT_ROUNDS=12
-          LOG_CHANNEL=stack
-          LOG_STACK=single
-          LOG_DEPRECATIONS_CHANNEL=null
-          LOG_LEVEL=error
-          DB_CONNECTION=mysql
-          DB_HOST=localhost
-          DB_PORT=3306
-          DB_DATABASE=u370190562_brgysanjose
-          DB_USERNAME=u370190562_Brgysanjose1
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          SESSION_DRIVER=database
-          SESSION_LIFETIME=120
-          SESSION_ENCRYPT=false
-          SESSION_PATH=/
-          SESSION_DOMAIN=null
-          BROADCAST_CONNECTION=log
-          FILESYSTEM_DISK=local
-          QUEUE_CONNECTION=database
-          CACHE_STORE=database
-          MEMCACHED_HOST=127.0.0.1
-          REDIS_CLIENT=phpredis
-          REDIS_HOST=127.0.0.1
-          REDIS_PASSWORD=null
-          REDIS_PORT=6379
-          MAIL_MAILER=smtp
-          MAIL_HOST=smtp.hostinger.com
-          MAIL_PORT=465
-          MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}
-          MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
-          MAIL_ENCRYPTION=ssl
-          MAIL_FROM_ADDRESS="${{ secrets.MAIL_FROM_ADDRESS }}"
-          MAIL_FROM_NAME="${APP_NAME}"
-          VITE_APP_NAME="${APP_NAME}"
-          PAYMONGO_SECRET_KEY=${{ secrets.PAYMONGO_SECRET_KEY }}
-          PAYMONGO_PUBLIC_KEY=${{ secrets.PAYMONGO_PUBLIC_KEY }}
-          PAYMONGO_TRANSACTION_FEE=20
-          EOF
+          set -euo pipefail
+          RELEASE=/tmp/release
+          rm -rf "$RELEASE"
+          mkdir -p "$RELEASE"
 
-      - name: Generate key if missing
+          cp -a ./. "$RELEASE"/
+
+          rm -rf \
+            "$RELEASE/.git" \
+            "$RELEASE/.github" \
+            "$RELEASE/node_modules" \
+            "$RELEASE/tests" \
+            "$RELEASE/phpunit.xml" \
+            "$RELEASE/.editorconfig" \
+            "$RELEASE/.env" \
+            "$RELEASE/.env.example" \
+            "$RELEASE/database/barangayapp.sql" \
+            "$RELEASE/composer.json" \
+            "$RELEASE/composer.lock"
+
+          cp deploy/gitignore-deploy "$RELEASE/.gitignore"
+
+      - name: Publish to ${{ env.DEPLOY_BRANCH }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if grep -q 'APP_KEY=$' .env; then
-            php artisan key:generate --force
+          set -euo pipefail
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          git init -q /tmp/deploy
+          cd /tmp/deploy
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "$REMOTE"
+
+          # Keep the branch's history linear so hPanel's `git pull` stays a
+          # fast-forward. A force-pushed or orphaned branch would leave the
+          # server unable to pull without manual intervention.
+          if git fetch -q --depth 1 origin "$DEPLOY_BRANCH" 2>/dev/null; then
+            git checkout -q -b "$DEPLOY_BRANCH" FETCH_HEAD
+            echo "Building on existing $DEPLOY_BRANCH"
+          else
+            git checkout -q -b "$DEPLOY_BRANCH"
+            echo "Creating $DEPLOY_BRANCH"
           fi
 
-      - name: Optimize Laravel
-        run: |
-          php artisan config:cache
-          php artisan route:cache
-          php artisan view:cache
+          # Replace the working tree wholesale so files deleted upstream
+          # disappear from the release instead of lingering on the server.
+          find /tmp/deploy -mindepth 1 -maxdepth 1 -name '.git' -prune -o -exec rm -rf {} +
+          cp -a /tmp/release/. /tmp/deploy/
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.HOSTINGER_HOST }}
-          username: ${{ secrets.HOSTINGER_USER }}
-          key: ${{ secrets.HOSTINGER_SSH_KEY }}
-          port: 22
-          script: |
-            set -e
-            cd /home/u370190562/domains/brgysanjose.site/public_html
-            git pull origin main
-            composer install --optimize-autoloader --no-dev --no-interaction
-            npm ci
-            npm run build
-            php artisan migrate --force
-            php artisan config:cache
-            php artisan route:cache
-            php artisan view:cache
-            php artisan storage:link
-            chmod -R 775 storage bootstrap/cache
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Release is identical to the current $DEPLOY_BRANCH; nothing to push."
+            exit 0
+          fi
+
+          git commit -q -m "Build ${{ inputs.source_ref }} (${GITHUB_SHA:0:7}) for Hostinger" \
+            -m "PHP ${{ inputs.php_version }} - workflow run ${GITHUB_RUN_ID}"
+          git push -q origin "$DEPLOY_BRANCH"
+          echo "Pushed $(git rev-parse --short HEAD) to $DEPLOY_BRANCH"
+
+      - name: Trigger the hPanel pull
+        # Optional: paste hPanel > Git > "Auto deployment" webhook URL into the
+        # HOSTINGER_DEPLOY_WEBHOOK secret. Without it, click Deploy in hPanel.
+        if: ${{ inputs.pull_on_hostinger }}
+        env:
+          WEBHOOK: ${{ secrets.HOSTINGER_DEPLOY_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK}" ]; then
+            echo "::notice::HOSTINGER_DEPLOY_WEBHOOK is not set - pull the branch from hPanel > Git > Deploy."
+            exit 0
+          fi
+          curl -fsS -X POST "${WEBHOOK}" >/dev/null
+          echo "hPanel pull triggered."
+
+      - name: Remind about the post-deploy step
+        run: |
+          echo "::notice::Release published. Migrations and cache rebuilds still need deploy/post-deploy.sh to run on the server."
