@@ -55,6 +55,24 @@ Route::get('/uploads/ids/{filename}', function (string $filename) {
     abort(404);
 })->name('id-photo.fallback');
 
+// Serve uploaded profile pictures from whichever copy exists (web root or
+// app-internal backup) — same resilience strategy as ID photos.
+Route::get('/uploads/profile_pictures/{filename}', function (string $filename) {
+    $filename = basename($filename); // no traversal
+    abort_unless(preg_match('/^pp_[0-9]+_[a-f0-9]+\.(jpg|jpeg|png|webp)$/i', $filename), 404);
+
+    $candidates = [
+        public_path('uploads/profile_pictures/' . $filename),        // app backup
+        base_path('../public_html/uploads/profile_pictures/' . $filename), // web root
+    ];
+    foreach ($candidates as $path) {
+        if (is_file($path)) {
+            return response()->file($path, ['Cache-Control' => 'private, max-age=3600']);
+        }
+    }
+    abort(404);
+})->name('profile-photo.fallback');
+
 // Guest-only auth routes
 Route::middleware('guest')->group(function () {
     Route::get('/register', [RegisterController::class, 'show'])->name('register');

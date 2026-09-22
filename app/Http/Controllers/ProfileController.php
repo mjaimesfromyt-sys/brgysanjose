@@ -23,21 +23,32 @@ class ProfileController extends Controller
 
         $user = Auth::user();
 
-        $targetDir = '/home/u370190562/domains/brgysanjose.site/public_html/uploads/profile_pictures';
-        if (!file_exists($targetDir)) {
-            mkdir($targetDir, 0777, true);
-        }
-
-        if ($user->profile_picture) {
-            $oldPath = '/home/u370190562/domains/brgysanjose.site/public_html/' . ltrim($user->profile_picture, '/');
-            if (file_exists($oldPath)) {
-                @unlink($oldPath);
-            }
-        }
+        // InfinityFree/wuaze: open_basedir only allows the htdocs tree, so all
+        // paths must be derived (public_path/base_path), never hardcoded to a
+        // previous host. Mirror the proven ID-photo upload strategy:
+        // write to the app's public dir, copy to the web root when possible,
+        // and let the /uploads/profile_pictures/{filename} fallback route
+        // serve whichever copy exists.
+        $this->deletePhotoFiles($user->profile_picture);
 
         $file = $request->file('profile_picture');
-        $fileName = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-        $file->move($targetDir, $fileName);
+        $fileName = 'pp_' . time() . '_' . bin2hex(random_bytes(6)) . '.' . $file->getClientOriginalExtension();
+
+        $dest1 = public_path('uploads/profile_pictures');
+        if (!file_exists($dest1)) {
+            mkdir($dest1, 0755, true);
+        }
+        $file->move($dest1, $fileName);
+
+        // Secondary copy in the web root (/htdocs/uploads/profile_pictures) so
+        // the image also resolves as a static file without PHP routing.
+        $dest2 = base_path('../public_html/uploads/profile_pictures');
+        if (is_dir(base_path('../public_html'))) {
+            if (!file_exists($dest2)) {
+                @mkdir($dest2, 0755, true);
+            }
+            @copy($dest1 . '/' . $fileName, $dest2 . '/' . $fileName);
+        }
 
         $user->update([
             'profile_picture' => 'uploads/profile_pictures/' . $fileName
@@ -50,12 +61,7 @@ class ProfileController extends Controller
     {
         $user = Auth::user();
 
-        if ($user->profile_picture) {
-            $oldPath = '/home/u370190562/domains/brgysanjose.site/public_html/' . ltrim($user->profile_picture, '/');
-            if (file_exists($oldPath)) {
-                @unlink($oldPath);
-            }
-        }
+        $this->deletePhotoFiles($user->profile_picture);
 
         $user->update(['profile_picture' => null]);
 
@@ -104,10 +110,38 @@ class ProfileController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
-        $msg = $isGoogleUser 
-            ? 'Password has been set successfully! You can now also log in using your email and password.' 
+        $msg = $isGoogleUser
+            ? 'Password has been set successfully! You can now also log in using your email and password.'
             : 'Your password has been changed successfully.';
 
         return redirect()->route('profile.edit')->with('status_password', $msg);
+    }
+
+    /**
+     * Delete every on-disk copy of a stored profile_picture path
+     * (web root + app public backup). Tolerates legacy paths.
+     */
+    private function deletePhotoFiles(?string $storedPath): void
+    {
+        if (empty($storedPath)) {
+            return;
+        }
+
+        $filename = basename($storedPath);
+
+        $candidates = [
+            public_path('uploads/profile_pictures/' . $filename),        // laravel_app/public/...
+            base_path('../public_html/uploads/profile_pictures/' . $filename), // web root
+        ];
+
+        foreach ($candidates as $path) {
+            try {
+                if (is_file($path)) {
+                    @unlink($path);
+                }
+            } catch (\Throwable $e) {
+                // open_basedir on a foreign path just means "not ours" — skip.
+            }
+        }
     }
 }
