@@ -36,17 +36,31 @@
 </head>
 <body>
 
-@if (!empty($headerImgBase64))
-    <img src="{{ $headerImgBase64 }}" alt="Official Barangay San Jose Letterhead" style="width: 100%; display: block; margin-bottom: 6px;">
-@else
 <div class="head">
-    <div class="rep">Republic of the Philippines &middot; Province of Bohol &middot; Municipality of Talibon</div>
-    <div class="brgy">Barangay San Jose</div>
-</div>
-@endif
-<div class="title-wrap">
-    <div class="title">DAILY COLLECTION SUMMARY — CASH &amp; CASHLESS</div>
-    <div class="meta-note">Official financial report &middot; Barangay San Jose, Talibon, Bohol</div>
+    <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="width: 18%; text-align: center; vertical-align: middle;">
+                @if (!empty($talibonSeal))
+                    <img src="{{ $talibonSeal }}" alt="Seal of Talibon" style="width: 62px; height: 62px;">
+                @endif
+            </td>
+            <td style="text-align: center; vertical-align: middle;">
+                <div style="font-size: 9.5px; letter-spacing: .5px; color: #444; text-transform: uppercase; font-weight: 600;">Republic of the Philippines</div>
+                <div style="font-size: 10px; color: #333; font-weight: 600;">Province of Bohol &middot; Municipality of Talibon</div>
+                <div style="font-size: 15px; font-weight: bold; color: #1b5e20; letter-spacing: .8px; text-transform: uppercase;">Barangay San Jose</div>
+                <div style="font-size: 9px; color: #64748b;">Barangay Information &amp; Booking System</div>
+            </td>
+            <td style="width: 18%; text-align: center; vertical-align: middle;">
+                @if (!empty($barangaySeal))
+                    <img src="{{ $barangaySeal }}" alt="Barangay San Jose Seal" style="width: 62px; height: 62px;">
+                @endif
+            </td>
+        </tr>
+    </table>
+    <div class="title-wrap" style="margin-top: 4px;">
+        <div class="title">DAILY COLLECTION SUMMARY — CASH &amp; CASHLESS</div>
+        <div class="meta-note">Official financial report &middot; Barangay San Jose, Talibon, Bohol</div>
+    </div>
 </div>
 
 <table class="meta">

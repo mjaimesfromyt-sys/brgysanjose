@@ -125,8 +125,9 @@ class CashSummaryController extends Controller
             'grandTotal'       => $grandTotal,
             'settings'         => $settings,
             'pendingThatDay'   => $pendingThatDay,
+            'talibonSeal'      => $this->sealDataUri('talibon-seal'),
+            'barangaySeal'     => $this->sealDataUri('barangay-seal'),
             'generatedAt'      => now()->format('M d, Y g:i:s A'),
-            'headerImgBase64'  => $this->headerDataUri(),
         ])->setOptions(\App\Http\Controllers\DocumentPdfController::dompdfOptions(), true);
     }
 
@@ -145,11 +146,11 @@ class CashSummaryController extends Controller
     }
 
     /**
-     * Official letterhead artwork as a JPEG data URI (JPEG embeds into DomPDF
-     * with zero PHP extensions, so the header renders even on GD-less hosts —
-     * same strategy as the certificate letterhead).
+     * Official seal as a JPEG data URI (JPEG embeds into DomPDF with zero
+     * PHP extensions — same GD-less-proof strategy as the certificates).
+     * PNGs are flattened onto white when GD exists.
      */
-    private function headerDataUri(): ?string
+    private function sealDataUri(string $name): ?string
     {
         $dirs = array_values(array_filter([
             public_path('images'),
@@ -159,7 +160,7 @@ class CashSummaryController extends Controller
 
         foreach (['jpg', 'jpeg', 'png'] as $ext) {
             foreach ($dirs as $dir) {
-                $path = $dir . DIRECTORY_SEPARATOR . 'barangay-san-jose-header.' . $ext;
+                $path = $dir . DIRECTORY_SEPARATOR . $name . '.' . $ext;
                 if (! is_file($path)) {
                     continue;
                 }
