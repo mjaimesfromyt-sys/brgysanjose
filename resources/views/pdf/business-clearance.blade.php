@@ -285,9 +285,14 @@
                 <td style="width: 38%; text-align: right; padding-right: 8px; vertical-align: top;">
                     <div class="qr-code-box" style="display: inline-block; text-align: center;">
                         <div style="color: #C00000; font-weight: bold; font-size: 7.5pt; margin-bottom: 4pt; letter-spacing: 0.3px;">BARANGAY OFFICIAL SEAL</div>
-                        @if (!empty($qrCodeSvg))
-                            <div style="display: inline-block; padding: 3px; background: transparent; border: 1px solid #bbb; border-radius: 4px;">
-                                <img src="data:image/svg+xml;base64,{{ base64_encode($qrCodeSvg) }}" style="width: 52px; height: 52px;">
+                        @if (!empty($qrPngBase64))
+                            <div style="display: inline-block; padding: 3px; background: #ffffff; border: 1px solid #bbb; border-radius: 4px;">
+                                <img src="{{ $qrPngBase64 }}" style="width: 52px; height: 52px;">
+                            </div>
+                            <div class="qr-label">Scan to Verify Authenticity</div>
+                        @elseif (!empty($qrCodeSvg))
+                            <div style="display: inline-block; padding: 3px; background: #ffffff; border: 1px solid #bbb; border-radius: 4px;">
+                                {!! $qrCodeSvg !!}
                             </div>
                             <div class="qr-label">Scan to Verify Authenticity</div>
                         @endif

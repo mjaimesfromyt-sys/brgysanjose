@@ -26,17 +26,36 @@
 
     <div class="mb-3">
         <label for="password" class="form-label">Password</label>
-        <input id="password"
-               type="password"
-               name="password"
-               class="form-control @error('password') is-invalid @enderror"
-               autocomplete="current-password"
-               required>
+        <div class="input-group">
+            <input id="password"
+                   type="password"
+                   name="password"
+                   class="form-control @error('password') is-invalid @enderror"
+                   autocomplete="current-password"
+                   required>
+            <button type="button" class="btn btn-outline-secondary" id="togglePassword"
+                    aria-label="Show password" title="Show / hide password">👁</button>
+        </div>
 
         @error('password')
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror
     </div>
+
+<script>
+(function () {
+    const btn = document.getElementById('togglePassword');
+    const input = document.getElementById('password');
+    if (!btn || !input) return;
+    btn.addEventListener('click', function () {
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        btn.textContent = show ? '🙈' : '👁';
+        btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        input.focus();
+    });
+})();
+</script>
 
     <div class="mb-4 form-check">
         <input type="checkbox"

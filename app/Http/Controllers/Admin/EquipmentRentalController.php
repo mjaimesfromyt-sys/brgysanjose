@@ -100,11 +100,17 @@ class EquipmentRentalController extends Controller
     public function reject(Request $request, EquipmentRental $rental)
     {
         $validated = $request->validate([
-            'admin_remarks' => ['nullable', 'string', 'max:500'],
+            'admin_remarks' => ['required', 'string', 'min:3', 'max:500'],
         ]);
 
         if ($rental->status !== 'pending') {
             return back()->with('error', 'This rental has already been reviewed.');
+        }
+
+        // 👉 Paid rentals can no longer be rejected — route the money matter
+        // through the Refunds module instead (audit-safe cash handling).
+        if ($rental->payment_status === 'paid') {
+            return back()->with('error', 'This rental is already paid. Use the Refunds module to cancel and refund it.');
         }
 
         $oldStatus = $rental->status;
@@ -235,6 +241,8 @@ class EquipmentRentalController extends Controller
 
         $rental->update([
             'payment_status' => 'paid',
+            'collected_by'   => $request->user()->id,
+            'collected_at'   => now(),
         ]);
 
         $rental->deductStock();

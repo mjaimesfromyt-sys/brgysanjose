@@ -30,12 +30,15 @@ class EquipmentRental extends Model
         'paymongo_checkout_session_id',
         'payment_channel',
         'amount_due',
+        'collected_by',
+        'collected_at',
     ];
 
     protected $casts = [
-        'start_date'  => 'date',
-        'end_date'    => 'date',
-        'released_at' => 'datetime',
+        'start_date'   => 'date',
+        'end_date'     => 'date',
+        'collected_at' => 'datetime',
+        'released_at'  => 'datetime',
         'return_reminded_at' => 'datetime',
         'due_at' => 'datetime',
         'overdue_notified_at' => 'datetime',

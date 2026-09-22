@@ -79,7 +79,7 @@ class DocumentRequestController extends Controller
     public function reject(Request $request, DocumentRequest $documentRequest)
     {
         $validated = $request->validate([
-            'admin_remarks' => ['nullable', 'string', 'max:500'],
+            'admin_remarks' => ['required', 'string', 'min:3', 'max:500'],
         ]);
 
         if ($documentRequest->status !== 'pending') {
@@ -159,6 +159,8 @@ class DocumentRequestController extends Controller
 
         $documentRequest->update([
             'payment_status' => 'paid',
+            'collected_by'   => $request->user()->id,
+            'collected_at'   => now(),
         ]);
 
         activity('document_requests')
@@ -183,5 +185,57 @@ class DocumentRequestController extends Controller
         );
 
         return back()->with('success', 'Request marked as paid.');
+    }
+
+    /**
+     * Claim-code quick lookup for the counter: one search box, staff types or
+     * pastes the code (e.g. BRGY-2026-XXXX) and gets every matching pending
+     * request across document requests, bookings and rentals in one JSON.
+     */
+    public function lookup(Request $request)
+    {
+        $code = strtoupper(trim($request->query('code', '')));
+
+        if ($code === '') {
+            return response()->json(['results' => []]);
+        }
+
+        $needle = str_replace(['-', ' '], '', $code);
+        $normalizes = fn (string $v) => str_replace(['-', ' '], '', strtoupper($v));
+
+        $mapRequest = fn ($row, string $kind, string $what) => [
+            'kind'       => $kind,
+            'what'       => $what,
+            'who'        => $row->user?->name ?? '—',
+            'contact'    => $row->user?->contact_no ?? $row->user?->email ?? '',
+            'claim_code' => $row->claim_code,
+            'status'     => $row->status,
+            'payment'    => $row->payment_status,
+            'url'        => match ($kind) {
+                'document' => route('admin.requests.index', ['status' => $row->status === 'pending' ? 'pending' : 'validated']),
+                'booking'  => route('admin.bookings.index', ['status' => $row->status === 'pending' ? 'pending' : 'approved']),
+                default    => route('admin.rentals.index', ['status' => $row->status === 'pending' ? 'pending' : 'approved']),
+            },
+        ];
+
+        $results = collect();
+
+        DocumentRequest::with('user')
+            ->when($needle === '', fn ($q) => $q->whereRaw('1=0'))
+            ->get()
+            ->filter(fn ($r) => $r->claim_code && str_contains($normalizes($r->claim_code), $needle))
+            ->each(fn ($r) => $results->push($mapRequest($r, 'document', 'Document: '.($r->transactionType->name ?? ''))));
+
+        \App\Models\Booking::with('user')
+            ->get()
+            ->filter(fn ($r) => $r->claim_code && str_contains($normalizes($r->claim_code), $needle))
+            ->each(fn ($r) => $results->push($mapRequest($r, 'booking', 'Booking: '.($r->facility->name ?? ''))));
+
+        \App\Models\EquipmentRental::with('user')
+            ->get()
+            ->filter(fn ($r) => $r->claim_code && str_contains($normalizes($r->claim_code), $needle))
+            ->each(fn ($r) => $results->push($mapRequest($r, 'rental', 'Rental')));
+
+        return response()->json(['results' => $results->take(10)->values()]);
     }
 }

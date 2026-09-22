@@ -25,8 +25,6 @@ class BookingController extends Controller
             ->latest('id')
             ->paginate(10);
 
-        
-        event(new NewTransactionEvent('Facility Booking', 'New Facility Booking', auth()->user()->name ?? 'Resident', 'BK-' . ($booking->id ?? rand(100, 999)), route('admin.bookings.index')));
         return view('bookings.index', compact('bookings'));
     }
 
@@ -181,6 +179,17 @@ class BookingController extends Controller
             'amount_due'     => $amountDue,
             'payment_status' => $amountDue > 0 ? 'unpaid' : 'paid',
         ]);
+
+        // Notify admins of the NEW booking (belongs in store, not index —
+        // firing it in index() spammed admins every time a resident merely
+        // viewed their bookings list).
+        event(new NewTransactionEvent(
+            'Facility Booking',
+            'New Facility Booking',
+            $request->user()->name ?? 'Resident',
+            'BK-' . $booking->id,
+            route('admin.bookings.index')
+        ));
 
         if (! $isCashless || $amountDue <= 0) {
             return redirect()->route('bookings.index')

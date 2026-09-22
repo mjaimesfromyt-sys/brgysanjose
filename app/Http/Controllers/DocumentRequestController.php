@@ -26,8 +26,6 @@ class DocumentRequestController extends Controller
             ->latest()
             ->get();
 
-        
-        event(new NewTransactionEvent('Document Request', 'New Document Request', auth()->user()->name ?? 'Resident', 'DOC-' . ($requestRecord->id ?? rand(100, 999)), route('admin.requests.index')));
         return view('requests.index', compact('requests'));
     }
 
@@ -136,6 +134,16 @@ class DocumentRequestController extends Controller
             'amount_due'          => $amountDue,
             'payment_status'      => $amountDue > 0 ? 'unpaid' : 'paid',
         ]);
+
+        // Notify admins of the NEW request (belongs in store, not index —
+        // firing it in index() spammed admins on every page view).
+        event(new NewTransactionEvent(
+            'Document Request',
+            'New Document Request',
+            $request->user()->name ?? 'Resident',
+            'DOC-' . $docRequest->id,
+            route('admin.requests.index')
+        ));
 
         if (! $isCashless || $amountDue <= 0) {
             return redirect()->route('requests.index')

@@ -106,6 +106,18 @@ class RegisterController extends Controller
                 copy($dest1 . '/' . $filename, $dest2 . '/' . $filename);
             }
 
+            // Backup copy INSIDE the app (laravel_app/public/uploads/ids).
+            // The web root can be re-synced/redeployed without the app folder;
+            // this copy survives that, and routes/id-photo-fallback serves it
+            // whenever the public copy is missing.
+            $dest3 = base_path('public/uploads/ids');
+            if (!file_exists($dest3)) {
+                mkdir($dest3, 0755, true);
+            }
+            if (rtrim($dest3, '/\\') !== rtrim($dest1, '/\\') && !file_exists($dest3 . '/' . $filename)) {
+                copy($dest1 . '/' . $filename, $dest3 . '/' . $filename);
+            }
+
             $idPhotoPath = 'uploads/ids/' . $filename;
         }
 

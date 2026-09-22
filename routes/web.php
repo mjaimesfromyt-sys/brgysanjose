@@ -37,12 +37,30 @@ Route::get('/announcements/{announcement}', [HomeController::class, 'show'])->na
 Route::get('/verify/{code}', [\App\Http\Controllers\DocumentVerificationController::class, 'verify'])->middleware('throttle:30,1')->name('document.verify');
 Route::get('/map', [\App\Http\Controllers\GisMapController::class, 'index'])->name('map.index');
 
+// Serve uploaded ID photos from the app-internal backup when the copy in the
+// web root is missing (e.g. after a web-root redeploy on InfinityFree/wuaze).
+Route::get('/uploads/ids/{filename}', function (string $filename) {
+    $filename = basename($filename); // no traversal
+    abort_unless(preg_match('/^id_[0-9]+_[a-f0-9]+\.(jpg|jpeg|png|webp)$/i', $filename), 404);
+
+    $candidates = [
+        public_path('uploads/ids/' . $filename),      // web root (/htdocs/uploads/ids)
+        base_path('public/uploads/ids/' . $filename), // app backup (laravel_app/public/uploads/ids)
+    ];
+    foreach ($candidates as $path) {
+        if (is_file($path)) {
+            return response()->file($path, ['Cache-Control' => 'private, max-age=3600']);
+        }
+    }
+    abort(404);
+})->name('id-photo.fallback');
+
 // Guest-only auth routes
 Route::middleware('guest')->group(function () {
     Route::get('/register', [RegisterController::class, 'show'])->name('register');
     Route::post('/register', [RegisterController::class, 'store'])->middleware('throttle:3,1')->name('register.store');
     Route::get('/login', [LoginController::class, 'show'])->name('login');
-    Route::post('/login', [LoginController::class, 'store'])->middleware('throttle:5,1')->name('login.store');
+    Route::post('/login', [LoginController::class, 'store'])->middleware(['throttle:5,1', 'anti-bruteforce'])->name('login.store');
     Route::get('/verify-otp', [OtpVerificationController::class, 'show'])->name('otp.verify.form');
     Route::post('/verify-otp', [OtpVerificationController::class, 'verify'])->middleware('throttle:5,1')->name('otp.verify');
     Route::post('/verify-otp/resend', [OtpVerificationController::class, 'resend'])->middleware('throttle:2,1')->name('otp.resend');
@@ -160,6 +178,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/announcements/{announcement}/publish', [AnnouncementController::class, 'publishNow'])->name('announcements.publish');
         Route::delete('/announcements/{announcement}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
         Route::get('/requests', [AdminDocumentRequestController::class, 'index'])->name('requests.index');
+        Route::get('/requests/lookup', [AdminDocumentRequestController::class, 'lookup'])->name('requests.lookup');
         Route::post('/requests/{documentRequest}/validate', [AdminDocumentRequestController::class, 'validateRequest'])->name('requests.validate');
         Route::post('/requests/{documentRequest}/reject', [AdminDocumentRequestController::class, 'reject'])->name('requests.reject');
         Route::post('/requests/{documentRequest}/claimed', [AdminDocumentRequestController::class, 'markClaimed'])->name('requests.claimed');
@@ -178,6 +197,9 @@ Route::middleware('auth')->group(function () {
         // 👉 Magpabilin sa sidebar para sa tanang Sub-Admin & Super Admin:
         Route::get('/transaction-history', [TransactionHistoryController::class, 'index'])->name('transaction-history.index');
 
+        // End-of-day cash summary PDF (per collector)
+        Route::get('/cash-summary', [\App\Http\Controllers\Admin\CashSummaryController::class, 'index'])->name('cash-summary.index');
+
         // Refunds
         Route::get('/refunds', [RefundRequestController::class, 'index'])->name('refunds.index');
         Route::post('/refunds/{refundRequest}/approve', [RefundRequestController::class, 'approve'])->name('refunds.approve');
@@ -186,6 +208,9 @@ Route::middleware('auth')->group(function () {
 
         // ================= SUPER ADMIN ONLY SECTION =================
         Route::middleware('role:super_admin')->group(function () {
+            // Analytics dashboard (income & activity charts)
+            Route::get('/analytics', [\App\Http\Controllers\Admin\AnalyticsController::class, 'index'])->name('analytics.index');
+
             // Activity Log (Super Admin Ra Gyud Makasulod)
             Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('activity-log.index');
 

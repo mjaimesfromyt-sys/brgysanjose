@@ -163,6 +163,14 @@ class DashboardController extends Controller
                 ->where('status', 'validated')
                 ->count(),
 
+            // Most recent non-rejected, non-claimed request, for the
+            // at-a-glance progress timeline on the dashboard card.
+            'latestActiveRequest' => DocumentRequest::with('transactionType')
+                ->where('user_id', $user->id)
+                ->whereIn('status', ['pending', 'validated'])
+                ->latest()
+                ->first(),
+
             'readyToClaim' => DocumentRequest::with('transactionType')
                 ->where('user_id', $user->id)
                 ->where('status', 'validated')

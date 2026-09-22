@@ -30,9 +30,13 @@
                         <th>Name</th>
                         <th>Contact</th>
                         <th>Address</th>
+                        <th>Verification / ID</th>
                         <th>Type</th>
-                        @if ($status === 'pending' || $status === 'rejected')
-                            <th class="text-end">Decision</th>
+                        @if ($status === 'pending')
+                            <th class="text-end">Action</th>
+                        @elseif ($status === 'rejected')
+                            <th style="min-width:220px">Reason for rejection</th>
+                            <th class="text-end">Action</th>
                         @endif
                     </tr>
                 </thead>
@@ -49,22 +53,25 @@
                                 @if ($user->purok)
                                     <div class="text-muted small">Purok: <strong>{{ $user->purok }}</strong></div>
                                 @endif
-                                @if ($user->id_type)
-                                    <div class="mt-1">
-                                        <span class="badge bg-light text-dark border">
-                                            {{ $user->id_type }}: <strong>{{ $user->id_number }}</strong>
-                                        </span>
-                                    </div>
-                                @endif
                                 @if ($user->birthdate)
                                     <div class="text-muted small mt-1">
                                         Birthdate: {{ \Carbon\Carbon::parse($user->birthdate)->format('M d, Y') }} ({{ \Carbon\Carbon::parse($user->birthdate)->age }} y/o) &bull; {{ $user->civil_status ?? 'Single' }}
                                     </div>
                                 @endif
-                                
-                                
+                            </td>
+                            <td style="min-width:200px">
+                                @if ($user->id_type)
+                                    <div class="mb-1">
+                                        <span class="badge bg-light text-dark border">
+                                            {{ $user->id_type }}: <strong>{{ $user->id_number }}</strong>
+                                        </span>
+                                    </div>
+                                @else
+                                    <span class="text-muted small">No ID submitted</span>
+                                @endif
+
                                 @if ($user->id_photo_front)
-                                    <div class="mt-2 mb-1">
+                                    <div class="mt-1 mb-1">
                                         <button type="button" onclick="openIdViewer('/{{ ltrim($user->id_photo_front, '/') }}', '{{ addslashes($user->name) }}', '{{ $user->id_type ?? 'Government ID' }}', '{{ $user->id_number ?? '' }}', '{{ $user->purok ?? '' }}')" class="btn btn-sm btn-outline-success py-1 px-3 rounded-pill fw-semibold shadow-sm">
                                             Inspect Valid ID Photo &rarr;
                                         </button>
@@ -110,7 +117,8 @@
                                         <form method="POST" action="{{ route('admin.residents.reject', $user) }}">
                                             @csrf
                                             <textarea name="rejection_reason" rows="2" class="form-control form-control-sm mb-2"
-                                                      placeholder="Reason (shown to applicant, optional)"></textarea>
+                                                      required minlength="3"
+                                                      placeholder="Reason (required — shown to the applicant)"></textarea>
                                             <button class="btn btn-sm btn-danger w-100">Confirm rejection</button>
                                         </form>
                                     </div>
@@ -118,6 +126,13 @@
                             @endif
 
                             @if ($status === 'rejected')
+                                <td class="small" style="max-width:300px">
+                                    @if ($user->rejection_reason)
+                                        <span class="text-dark">{{ $user->rejection_reason }}</span>
+                                    @else
+                                        <span class="text-muted fst-italic">No reason recorded</span>
+                                    @endif
+                                </td>
                                 <td class="text-end" style="min-width:280px">
                                     @if ($user->rejection_reason)
                                         <p class="small text-muted mb-2 text-start">

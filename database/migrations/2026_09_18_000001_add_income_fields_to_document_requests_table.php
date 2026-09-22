@@ -15,6 +15,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasColumn('document_requests', 'occupation')) {
+            return; // Production DB already had these columns added manually.
+        }
+
         Schema::table('document_requests', function (Blueprint $table) {
             $table->string('occupation')->nullable()->after('business_address');
             $table->decimal('monthly_income', 12, 2)->nullable()->after('occupation');

@@ -13,12 +13,14 @@ class Booking extends Model
         'status', 'reviewed_by', 'admin_remarks',
         'claim_code', 'payment_method', 'payment_status', 'payment_reference',
         'paymongo_checkout_session_id', 'payment_channel', 'amount_due',
+        'collected_by', 'collected_at',
     ];
 
     protected $casts = [
-        'start_date' => 'date',
-        'end_date'   => 'date',
-        'amount_due' => 'decimal:2',
+        'start_date'   => 'date',
+        'end_date'     => 'date',
+        'collected_at' => 'datetime',
+        'amount_due'   => 'decimal:2',
     ];
 
     public function user(): BelongsTo

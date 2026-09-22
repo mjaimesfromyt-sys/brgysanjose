@@ -33,6 +33,7 @@
                     <tr>
                         <th>Document</th>
                         <th>Purpose</th>
+                        <th style="min-width:300px">Progress</th>
                         <th>Requested</th>
                         <th>Claim code</th>
                         <th class="text-end">Status</th>
@@ -43,6 +44,16 @@
                         <tr>
                             <td class="fw-semibold">{{ $req->transactionType->name }}</td>
                             <td>{{ $req->purpose ?? '—' }}</td>
+                            <td>
+                                @include('partials.status-timeline', [
+                                    'status'        => $req->status,
+                                    'paymentStatus' => $req->payment_status,
+                                    'createdAt'     => $req->created_at,
+                                    'validatedAt'   => $req->validated_at,
+                                    'claimedAt'     => $req->claimed_at,
+                                    'remarks'       => $req->admin_remarks,
+                                ])
+                            </td>
                             <td class="text-muted">{{ $req->created_at->format('M d, Y') }}</td>
                             <td>
                                 @if ($req->claim_code)

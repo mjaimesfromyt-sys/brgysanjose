@@ -19,15 +19,17 @@
             background: transparent !important;
         }
 
-        /* 270pt Watermark: Nahimutang sa tunga sa text, DILI motandog sa mga pirma o sa resibo box */
+        /* 270pt Watermark: centered in the body, layered UNDER the text
+           (positive z-index + lower than content — DomPDF handles this
+           far more reliably than negative z-index). */
         .fixed-watermark {
             position: fixed;
-            top: 195pt;
+            top: 300pt;
             left: 171pt;
             width: 270pt;
             height: 270pt;
             opacity: 0.065;
-            z-index: -1000;
+            z-index: 1;
         }
         .fixed-watermark img {
             width: 270pt;
@@ -259,13 +261,23 @@
             } elseif (str_contains($typeLower, 'tree') || str_contains($typeLower, 'cutting')) {
                 $officialTitle = 'PERMIT TO CUT TREES';
             } else {
-                $officialTitle = 'BARANGAY CERTIFICATION';
+                // Follow the requested document's own name so titles like
+                // "BARANGAY AGREEMENT" print as-is instead of the generic
+                // "BARANGAY CERTIFICATION".
+                $officialTitle = strtoupper(trim($documentType ?? '')) ?: 'BARANGAY CERTIFICATION';
             }
 
             $purposeText = !empty($requestModel->purpose) ? strtoupper($requestModel->purpose) : 'WHATEVER LEGAL PURPOSE/S IT MAY SERVE';
             $ageDisplay = !empty($residentAge) ? $residentAge . ' years old' : 'of legal age';
             $statusDisplay = !empty($civilStatus) ? ucfirst($civilStatus) : 'Single';
-            $stayText = !empty($lengthOfStay) ? " (residing for " . $lengthOfStay . " " . ($lengthOfStay == 1 ? "year" : "years") . ")" : "";
+            // length_of_stay may already include its unit (e.g. "5 years") — only
+            // append "year/years" when the stored value is a plain number.
+            $stayText = '';
+            if (!empty($lengthOfStay)) {
+                $stayText = is_numeric($lengthOfStay)
+                    ? ' (residing for ' . $lengthOfStay . ' ' . ($lengthOfStay == 1 ? 'year' : 'years') . ')'
+                    : ' (residing for ' . $lengthOfStay . ')';
+            }
         @endphp
 
         <div class="date-row">Date: {{ now()->format('m-d-Y') }}</div>
@@ -377,6 +389,7 @@
 
         <!-- Signatures Section -->
         <table class="sig-table">
+            <tr>
                 <td style="padding-left: 5px;">
                     <div style="font-size: 9.5pt; color: #333; margin-bottom: 28px;">Records verified by:</div>
                     <div class="sig-block"><div class="sig-name">{{ $secretaryName ?? "HANNAH JOY B. CREDO" }}</div><div class="sig-title">Barangay Secretary</div></div>
@@ -384,7 +397,6 @@
                 <td style="padding-left: 50px;">
                     <div style="font-size: 9.5pt; color: #333; margin-bottom: 28px;">Noted by:</div>
                     <div class="sig-block"><div class="sig-name">{{ $captainName ?? "JOSEFINA C. GURREA" }}</div><div class="sig-title">Punong Barangay</div></div>
-                </td>
                 </td>
             </tr>
         </table>
@@ -416,9 +428,14 @@
                 </td>
                 <td style="width: 45%; text-align: right;">
                     <div class="qr-code-box" style="display: inline-block; text-align: center;">
-                        @if (!empty($qrCodeSvg))
-                            <div style="display: inline-block; padding: 3px; background: transparent; border: 1px solid #bbb; border-radius: 4px;">
-                                <img src="data:image/svg+xml;base64,{{ base64_encode($qrCodeSvg) }}" style="width: 52px; height: 52px;">
+                        @if (!empty($qrPngBase64))
+                            <div style="display: inline-block; padding: 3px; background: #ffffff; border: 1px solid #bbb; border-radius: 4px;">
+                                <img src="{{ $qrPngBase64 }}" style="width: 52px; height: 52px;">
+                            </div>
+                            <div class="qr-label">Scan to Verify Authenticity</div>
+                        @elseif (!empty($qrCodeSvg))
+                            <div style="display: inline-block; padding: 3px; background: #ffffff; border: 1px solid #bbb; border-radius: 4px;">
+                                {!! $qrCodeSvg !!}
                             </div>
                             <div class="qr-label">Scan to Verify Authenticity</div>
                         @endif

@@ -12,6 +12,7 @@ class DocumentRequest extends Model
     'status', 'admin_remarks', 'reviewed_by', 'validated_at', 'claimed_at',
     'payment_method', 'payment_status', 'payment_reference',
     'paymongo_checkout_session_id', 'payment_channel', 'amount_due', 'occupation', 'monthly_income', 'employed_since',
+    'collected_by', 'collected_at',
     'verification_code',
     'control_number',
     'issued_at',
@@ -27,6 +28,7 @@ class DocumentRequest extends Model
     protected $casts = [
         'validated_at' => 'datetime',
         'claimed_at'   => 'datetime',
+        'collected_at' => 'datetime',
         'amount_due'   => 'decimal:2',
     ];
 

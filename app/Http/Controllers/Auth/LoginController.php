@@ -60,6 +60,11 @@ class LoginController extends Controller
 
         // Attempt normal Laravel authentication.
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
+            // Clear the brute-force counter for this account on success.
+            \Illuminate\Support\Facades\RateLimiter::clear(
+                'login-attempts:' . sha1(strtolower(trim((string) $request->input('email'))))
+            );
+
             $request->session()->regenerate();
 
             return redirect()->intended(route('dashboard'))

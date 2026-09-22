@@ -24,8 +24,6 @@ class EquipmentRentalController extends Controller
             ->latest('start_date')
             ->get();
 
-        
-        event(new NewTransactionEvent('Equipment Rental', 'New Equipment Rental', auth()->user()->name ?? 'Resident', 'EQ-' . ($rental->id ?? rand(100, 999)), route('admin.rentals.index')));
         return view('rentals.index', compact('rentals'));
     }
 
@@ -130,6 +128,16 @@ class EquipmentRentalController extends Controller
                 'quantity'     => (int) $line['quantity'],
             ]);
         }
+
+        // Notify admins of the NEW rental (belongs in store, not index —
+        // firing it in index() spammed admins on every page view).
+        event(new NewTransactionEvent(
+            'Equipment Rental',
+            'New Equipment Rental',
+            $request->user()->name ?? 'Resident',
+            'EQ-' . $rental->id,
+            route('admin.rentals.index')
+        ));
 
         if (! $isCashless) {
             return redirect()->route('rentals.index')

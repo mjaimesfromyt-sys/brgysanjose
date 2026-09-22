@@ -7,6 +7,72 @@
     <p class="page-subtitle">Validate requests to issue a claim code, then mark them claimed at the counter.</p>
 </div>
 
+{{-- CLAIM-CODE QUICK LOOKUP: type/paste a code at the counter, get the request instantly --}}
+<div class="card-soft mb-4" style="max-width:640px">
+    <div class="p-3">
+        <label for="claimLookup" class="form-label small fw-semibold mb-2">
+            🔎 Claim-code quick lookup
+        </label>
+        <div class="position-relative">
+            <input type="text" id="claimLookup" autocomplete="off"
+                   class="form-control"
+                   placeholder="Type or paste a claim code, e.g. BRGY-2026-0042…">
+            <div id="claimLookupResults" class="list-group mt-2" style="display:none"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const input = document.getElementById("claimLookup");
+    const box = document.getElementById("claimLookupResults");
+    if (!input || !box) return;
+
+    let timer = null, lastQ = "";
+
+    function esc(s) {
+        const d = document.createElement("div");
+        d.textContent = s == null ? "" : String(s);
+        return d.innerHTML;
+    }
+
+    function render(rows) {
+        if (!rows.length) {
+            box.innerHTML = '<div class="list-group-item text-muted small">No request matches this code.</div>';
+            box.style.display = "block";
+            return;
+        }
+        box.innerHTML = rows.map(function (r) {
+            const paid = r.payment === 'paid';
+            return '<a class="list-group-item list-group-item-action" href="' + esc(r.url) + '">' +
+                '<div class="d-flex justify-content-between align-items-center gap-2">' +
+                '<div><div class="fw-semibold">' + esc(r.claim_code) + ' <span class=\"text-muted fw-normal\">· ' + esc(r.kind) + '</span></div>' +
+                '<div class=\"small text-muted\">' + esc(r.what) + ' — ' + esc(r.who) + '</div></div>' +
+                '<span class="pill ' + (paid ? 'pill--approved' : 'pill--neutral') + '">' + esc(r.payment) + '</span>' +
+                '</div></a>';
+        }).join("");
+        box.style.display = "block";
+    }
+
+    input.addEventListener("input", function () {
+        const q = input.value.trim();
+        clearTimeout(timer);
+        if (!q) { box.style.display = "none"; return; }
+        timer = setTimeout(function () {
+            fetch("{{ route('admin.requests.lookup') }}?code=" + encodeURIComponent(q),
+                  { headers: { "X-Requested-With": "XMLHttpRequest" } })
+                .then(function (r) { return r.json(); })
+                .then(function (d) { render(d.results || []); })
+                .catch(function () {});
+        }, 250);
+    });
+
+    document.addEventListener("click", function (e) {
+        if (!box.contains(e.target) && e.target !== input) box.style.display = "none";
+    });
+})();
+</script>
+
 @include('partials.tabs', [
     'routeName' => 'admin.requests.index',
     'current'   => $status,
@@ -44,7 +110,7 @@
                             @if ($status === 'validated' || $status === 'claimed')<th class="text-nowrap">Claim code</th>@endif
                             <th class="text-nowrap">Requested</th>
                         @endif
-                        @if ($status === 'rejected')<th class="text-nowrap">Reason</th>@endif
+                        @if ($status === 'rejected')<th style="min-width:220px">Reason for rejection</th>@endif
                         @if ($status !== 'rejected')<th class="text-end text-nowrap">{{ $status === 'claimed' ? 'Status' : 'Action' }}</th>@endif
                     </tr>
                 </thead>
@@ -80,8 +146,12 @@
                             @endif
 
                             @if ($status === 'rejected')
-                                <td class="text-muted small" style="max-width: 280px;">
-                                    {{ $req->admin_remarks ?: '—' }}
+                                <td class="small" style="max-width:300px">
+                                    @if ($req->admin_remarks)
+                                        <span class="text-dark">{{ $req->admin_remarks }}</span>
+                                    @else
+                                        <span class="text-muted fst-italic">No reason recorded</span>
+                                    @endif
                                 </td>
                             @endif
 
@@ -124,7 +194,8 @@
                                         <form method="POST" action="{{ route('admin.requests.reject', $req) }}" class="m-0">
                                             @csrf
                                             <textarea name="admin_remarks" rows="2" class="form-control form-control-sm mb-2"
-                                                      placeholder="Reason (shown to resident, optional)"></textarea>
+                                                      required minlength="3"
+                                                      placeholder="Reason (required — shown to the resident)"></textarea>
                                             <button class="btn btn-sm btn-danger w-100" style="font-size: 12px;">Confirm rejection</button>
                                         </form>
                                     </div>

@@ -82,7 +82,7 @@ class ResidentController extends Controller
     public function reject(Request $request, User $user)
     {
         $validated = $request->validate([
-            'rejection_reason' => ['nullable', 'string', 'max:500'],
+            'rejection_reason' => ['required', 'string', 'min:3', 'max:500'],
         ]);
 
         $oldStatus = $user->status;

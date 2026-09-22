@@ -82,6 +82,12 @@
             @if ($isSuperAdmin)
                 <div class="sidebar__label mt-3">Super Admin</div>
 
+                <a class="sidebar__link {{ request()->routeIs('admin.analytics.*') ? 'is-active' : '' }}"
+                   href="{{ route('admin.analytics.index') }}">
+                    @include('partials.icon', ['name' => 'chart'])
+                    <span>Analytics</span>
+                </a>
+
                 <a class="sidebar__link {{ request()->routeIs('admin.staff.*') ? 'is-active' : '' }}"
                    href="{{ route('admin.staff.index') }}">
                     @include('partials.icon', ['name' => 'user'])
@@ -194,6 +200,13 @@
                    href="{{ route('admin.transaction-history.index') }}">
                     @include('partials.icon', ['name' => 'history'])
                     <span>Transaction History</span>
+                </a>
+
+                <a class="sidebar__link {{ request()->routeIs('admin.cash-summary.*') ? 'is-active' : '' }}"
+                   href="{{ route('admin.cash-summary.index') }}"
+                   title="Printable end-of-day cash collection report">
+                    @include('partials.icon', ['name' => 'clipboard'])
+                    <span>Daily Cash Summary</span>
                 </a>
 
                 <a class="sidebar__link {{ request()->routeIs('admin.events.*') ? 'is-active' : '' }}"

@@ -110,11 +110,17 @@ class BookingApprovalController extends Controller
     public function reject(Request $request, Booking $booking)
     {
         $validated = $request->validate([
-            'admin_remarks' => ['nullable', 'string', 'max:500'],
+            'admin_remarks' => ['required', 'string', 'min:3', 'max:500'],
         ]);
 
         if ($booking->status !== 'pending') {
             return back()->with('error', 'This booking has already been reviewed.');
+        }
+
+        // 👉 Paid bookings can no longer be rejected — route the money matter
+        // through the Refunds module instead (audit-safe cash handling).
+        if ($booking->payment_status === 'paid') {
+            return back()->with('error', 'This booking is already paid. Use the Refunds module to cancel and refund it.');
         }
 
         $oldStatus = $booking->status;
@@ -161,6 +167,8 @@ class BookingApprovalController extends Controller
 
         $booking->update([
             'payment_status' => 'paid',
+            'collected_by'   => $request->user()->id,
+            'collected_at'   => now(),
         ]);
 
         activity('bookings')

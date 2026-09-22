@@ -94,10 +94,20 @@
             </div>
 
             <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2 pt-2 border-top">
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 flex-wrap align-items-center">
                     @if ($search || $service || $paymentStatus || $dateFrom || $dateTo)
                         <a href="{{ route('admin.transaction-history.index') }}" class="btn btn-outline-secondary">Clear</a>
                     @endif
+
+                    {{-- Daily Cash Summary quick jump: opens the printable end-of-day PDF for the chosen date --}}
+                    <div class="input-group input-group-sm" style="max-width: 330px">
+                        <span class="input-group-text">💰 Cash summary</span>
+                        <input type="date" id="cashSummaryDate" class="form-control"
+                               value="{{ $dateFrom ?: ($dateTo ?: today()->toDateString()) }}"
+                               aria-label="Cash summary date">
+                        <a href="#" id="cashSummaryBtn" class="btn btn-success"
+                           onclick="return openCashSummary(event)">Open PDF</a>
+                    </div>
                 </div>
 
                 <button type="button" id="btnPrintReport" onclick="printAndLogReport()" class="btn btn-outline-dark d-flex align-items-center gap-2">
@@ -421,4 +431,13 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 });
+
+// 💰 Daily Cash Summary: open the printable PDF for the picked date.
+function openCashSummary(e) {
+    e.preventDefault();
+    const d = document.getElementById('cashSummaryDate');
+    if (!d || !d.value) { alert('Pick a date first.'); return false; }
+    window.open("{{ route('admin.cash-summary.index') }}?date=" + d.value, '_blank');
+    return false;
+}
 </script>

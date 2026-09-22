@@ -14,7 +14,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
+            'anti-bruteforce' => \App\Http\Middleware\StrongerThrottle::class,
         ]);
+
+        // Security headers (clickjacking, MIME sniffing, referrer leakage)
+        // and XSS input purification on EVERY request.
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+        $middleware->web(append: \App\Http\Middleware\SanitizeInput::class);
 
         // PayMongo cannot carry a CSRF token; its webhook is authenticated
         // by the Paymongo-Signature header instead.

@@ -32,6 +32,7 @@
                         <th>Dates</th>
                         <th>Purpose</th>
                         <th>{{ $status === 'rejected' ? 'Status' : 'Payment' }}</th>
+                        @if ($status === 'rejected')<th style="min-width:220px">Reason for rejection</th>@endif
                         @if (in_array($status, ['approved', 'released', 'returned']))
                             <th>Claim code</th>
                         @endif
@@ -68,6 +69,15 @@
                             <td>
                                 @include('partials.payment-pill', ['model' => $rental, 'markPaidRoute' => route('admin.rentals.markPaid', $rental)])
                             </td>
+                            @if ($status === 'rejected')
+                                <td class="small" style="max-width:300px">
+                                    @if ($rental->admin_remarks)
+                                        <span class="text-dark">{{ $rental->admin_remarks }}</span>
+                                    @else
+                                        <span class="text-muted fst-italic">No reason recorded</span>
+                                    @endif
+                                </td>
+                            @endif
                             @if (in_array($status, ['approved', 'released', 'returned']))
                                 <td>
                                     <span class="fw-bold small" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">
@@ -93,17 +103,26 @@
                                             </form>
                                         @endif
 
-                                        <button type="button" class="btn btn-sm btn-outline-danger"
-                                                data-bs-toggle="collapse" data-bs-target="#reject-{{ $rental->id }}">
-                                            Reject
-                                        </button>
+                                        @if ($rental->payment_status === 'paid')
+                                            <button type="button" class="btn btn-sm btn-outline-danger opacity-50" disabled
+                                                    title="Cannot reject: payment has already been collected. Use the Refunds module instead."
+                                                    style="cursor: not-allowed;">
+                                                Reject
+                                            </button>
+                                        @else
+                                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                                    data-bs-toggle="collapse" data-bs-target="#reject-{{ $rental->id }}">
+                                                Reject
+                                            </button>
+                                        @endif
                                     </div>
 
                                     <div class="collapse mt-2 text-start" id="reject-{{ $rental->id }}">
                                         <form method="POST" action="{{ route('admin.rentals.reject', $rental) }}">
                                             @csrf
                                             <textarea name="admin_remarks" rows="2" class="form-control form-control-sm mb-2"
-                                                      placeholder="Reason (optional)"></textarea>
+                                                      required minlength="3"
+                                                      placeholder="Reason (required — shown to the resident)"></textarea>
                                             <button class="btn btn-sm btn-danger w-100">Confirm rejection</button>
                                         </form>
                                     </div>

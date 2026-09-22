@@ -19,15 +19,17 @@
             background: transparent !important;
         }
 
-        /* 270pt Watermark: Nahimutang sa tunga sa text, DILI motandog sa mga pirma o sa resibo box */
+        /* 270pt Watermark: centered in the body, layered UNDER the text
+           (positive z-index + lower than content — DomPDF handles this
+           far more reliably than negative z-index). */
         .fixed-watermark {
             position: fixed;
-            top: 270pt;
+            top: 300pt;
             left: 171pt;
             width: 270pt;
             height: 270pt;
             opacity: 0.065;
-            z-index: -1000;
+            z-index: 1;
         }
         .fixed-watermark img {
             width: 270pt;
@@ -92,6 +94,12 @@
             padding-right: 0.75in;
             position: relative;
             z-index: 10;
+        }
+
+        .fixed-header,
+        .fixed-footer {
+            position: fixed;
+            z-index: 20;
         }
 
         table, tr, td, tbody, thead, .or-box, .footer-meta-table, .sig-table {
@@ -274,7 +282,14 @@
             $purposeText = !empty($requestModel->purpose) ? strtoupper($requestModel->purpose) : 'WHATEVER LEGAL PURPOSE/S IT MAY SERVE';
             $ageDisplay = !empty($residentAge) ? $residentAge . ' years old' : 'of legal age';
             $statusDisplay = !empty($civilStatus) ? ucfirst($civilStatus) : 'Single';
-            $stayText = !empty($lengthOfStay) ? " (residing for " . $lengthOfStay . " " . ($lengthOfStay == 1 ? "year" : "years") . ")" : "";
+            // length_of_stay may already include its unit (e.g. "5 years") — only
+            // append "year/years" when the stored value is a plain number.
+            $stayText = '';
+            if (!empty($lengthOfStay)) {
+                $stayText = is_numeric($lengthOfStay)
+                    ? ' (residing for ' . $lengthOfStay . ' ' . ($lengthOfStay == 1 ? 'year' : 'years') . ')'
+                    : ' (residing for ' . $lengthOfStay . ')';
+            }
         @endphp
 
         <div class="date-row">Date: {{ now()->format('m-d-Y') }}</div>
@@ -312,9 +327,14 @@
                 </td>
                 <td style="width: 45%; text-align: right;">
                     <div class="qr-code-box" style="display: inline-block; text-align: center; margin-top: -12px;">
-                        @if (!empty($qrCodeSvg))
-                            <div style="display: inline-block; padding: 3px; background: transparent; border: 1px solid #bbb; border-radius: 4px;">
-                                <img src="data:image/svg+xml;base64,{{ base64_encode($qrCodeSvg) }}" style="width: 52px; height: 52px;">
+                        @if (!empty($qrPngBase64))
+                            <div style="display: inline-block; padding: 3px; background: #ffffff; border: 1px solid #bbb; border-radius: 4px;">
+                                <img src="{{ $qrPngBase64 }}" style="width: 52px; height: 52px;">
+                            </div>
+                            <div class="qr-label">Scan to Verify Authenticity</div>
+                        @elseif (!empty($qrCodeSvg))
+                            <div style="display: inline-block; padding: 3px; background: #ffffff; border: 1px solid #bbb; border-radius: 4px;">
+                                {!! $qrCodeSvg !!}
                             </div>
                             <div class="qr-label">Scan to Verify Authenticity</div>
                         @endif

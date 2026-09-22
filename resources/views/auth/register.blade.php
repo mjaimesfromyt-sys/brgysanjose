@@ -259,13 +259,37 @@
 
                 <div class="col-md-6">
                     <label class="form-label small fw-semibold text-secondary">Password <span class="text-danger">*</span></label>
-                    <input type="password" name="password" class="form-control" placeholder="Minimum 8 characters" required>
+                    <div class="input-group input-group-sm">
+                        <input type="password" name="password" id="regPassword" class="form-control" placeholder="Minimum 8 characters" required>
+                        <button type="button" class="btn btn-outline-secondary" id="toggleRegPassword" aria-label="Show password" title="Show / hide password">👁</button>
+                    </div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label small fw-semibold text-secondary">Confirm Password <span class="text-danger">*</span></label>
-                    <input type="password" name="password_confirmation" class="form-control" required>
+                    <div class="input-group input-group-sm">
+                        <input type="password" name="password_confirmation" id="regPasswordConfirm" class="form-control" required>
+                        <button type="button" class="btn btn-outline-secondary" id="toggleRegPasswordConfirm" aria-label="Show password" title="Show / hide password">👁</button>
+                    </div>
                 </div>
             </div>
+
+<script>
+(function () {
+    function bindToggle(btnId, inputId) {
+        const btn = document.getElementById(btnId);
+        const input = document.getElementById(inputId);
+        if (!btn || !input) return;
+        btn.addEventListener('click', function () {
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            btn.textContent = show ? '🙈' : '👁';
+            btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        });
+    }
+    bindToggle('toggleRegPassword', 'regPassword');
+    bindToggle('toggleRegPasswordConfirm', 'regPasswordConfirm');
+})();
+</script>
 
             @if(config('services.turnstile.site_key'))
                 <div class="mt-4 d-flex justify-content-center">

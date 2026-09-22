@@ -5,7 +5,9 @@
     $ageDisplay    = !empty($residentAge) ? $residentAge . ' years old' : 'of legal age';
     $statusDisplay = !empty($civilStatus) ? ucfirst($civilStatus) : 'Single';
     $stayText      = !empty($lengthOfStay)
-        ? ' (residing for ' . $lengthOfStay . ' ' . ($lengthOfStay == 1 ? 'year' : 'years') . ')'
+        ? (is_numeric($lengthOfStay)
+            ? ' (residing for ' . $lengthOfStay . ' ' . ($lengthOfStay == 1 ? 'year' : 'years') . ')'
+            : ' (residing for ' . $lengthOfStay . ')')
         : '';
     $residentName  = strtoupper($resident->name ?? '');
     $issuedDay     = now()->format('jS');

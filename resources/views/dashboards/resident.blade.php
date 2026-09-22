@@ -392,6 +392,13 @@
                             <div class="badge bg-success text-white mb-2" style="font-size: 10px;">
                                 {{ $myRequestsReady }} ready
                             </div>
+                            @if (!empty($latestActiveRequest))
+                                <div class="mb-2 text-start small text-muted" title="Latest request: {{ $latestActiveRequest->transactionType->name ?? '' }}">
+                                    <span class="fw-semibold text-dark">Latest:</span>
+                                    {{ $latestActiveRequest->transactionType->name ?? 'Request' }}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size: 10px;">{{ ucfirst($latestActiveRequest->status) }}</span>
+                                </div>
+                            @endif
                             <div>
                                 <a href="{{ route('requests.index') }}" class="btn btn-sm btn-outline-success rounded-pill px-3 py-0.5 fw-semibold" style="font-size: 11.5px;">My requests</a>
                             </div>

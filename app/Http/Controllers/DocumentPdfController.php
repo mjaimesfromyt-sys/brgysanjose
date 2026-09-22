@@ -47,47 +47,96 @@ class DocumentPdfController extends Controller
         }
 
         $verifyUrl = route('document.verify', ['code' => $requestModel->verification_code]);
-        $qrCodeSvg = QrCode::size(85)->generate($verifyUrl);
 
-        // Seals to Base64
-        $talibonPath = public_path('images/talibon-seal.png');
-        $barangayPath = public_path('images/barangay-seal.png');
-        $talibonSealBase64 = file_exists($talibonPath) ? 'data:image/png;base64,' . base64_encode(file_get_contents($talibonPath)) : null;
-        $barangaySealBase64 = file_exists($barangayPath) ? 'data:image/png;base64,' . base64_encode(file_get_contents($barangayPath)) : null;
+        // 👉 QR strategy (capability-based, no GD/Imagick required):
+        //   1. simple-qrcode PNG (needs Imagick) — crisp raster, always embeds.
+        //   2. Bacon encoder + GD raster — crisp raster via our own pixel painter.
+        //   3. simple-qrcode SVG (pure PHP) — rasterized with php-svg-lib.
+        // Either way the verification QR always appears on the document.
+        $qrPngBase64 = null;
+        $qrCodeSvg = null;
 
-        $searchDirs = [
+        if (extension_loaded('imagick')) {
+            try {
+                $qrPngBase64 = 'data:image/png;base64,' . base64_encode(
+                    QrCode::format('png')->size(300)->generate($verifyUrl)
+                );
+            } catch (\Throwable $e) {
+                $qrPngBase64 = null; // Imagick present but not usable
+            }
+        }
+
+        if ($qrPngBase64 === null && function_exists('imagecreatetruecolor') && class_exists(\BaconQrCode\Encoder\Encoder::class)) {
+            $qrPngBase64 = $this->qrPngDataUri($verifyUrl);
+        }
+
+        if ($qrPngBase64 === null) {
+            // Last resort: pure-PHP SVG markup from simple-qrcode, inlined by the
+            // view — DomPDF draws it through php-svg-lib as vector rectangles,
+            // which needs no PHP extensions at all. Sized 52px to match the
+            // raster variant's box exactly; the XML declaration is stripped
+            // because it is illegal inside an HTML document body.
+            $qrCodeSvg = preg_replace(
+                '/^\s*<\?xml[^>]*\?>/i',
+                '',
+                (string) QrCode::size(52)->generate($verifyUrl)
+            );
+        }
+
+        // 👉 Locate artwork across every plausible deployment layout.
+        // Shared hosts (InfinityFree/000webhost style) place the web root NEXT TO
+        // the app:  /htdocs/laravel_app (base_path) + /htdocs/images (web root).
+        $imageDirs = array_values(array_unique(array_filter([
             public_path('images'),
-            base_path('../public_html/images'),
+            base_path('public' . DIRECTORY_SEPARATOR . 'images'),
+            base_path('..' . DIRECTORY_SEPARATOR . 'images'),
+            base_path('..' . DIRECTORY_SEPARATOR . 'public_html' . DIRECTORY_SEPARATOR . 'images'),
             public_path(),
-            base_path('../public_html'),
-        ];
+            base_path('..' . DIRECTORY_SEPARATOR . 'public_html'),
+        ], fn ($dir) => is_dir($dir))));
 
-        $headerImgBase64 = null;
-        foreach ($searchDirs as $dir) {
-            $files = glob($dir . '/*header*.png') ?: [];
-            if (!empty($files)) {
-                $headerImgBase64 = 'data:image/png;base64,' . base64_encode(file_get_contents($files[0]));
-                break;
+        // JPEG-first: JPEG embeds straight into the PDF *without* the GD
+        // extension, so the letterhead keeps rendering even on GD-less hosts.
+        // Exception: the footer wave carries transparency — a JPEG's white
+        // background would paint over the receipt box and QR control number
+        // sitting just above it, so the alpha PNG is preferred there.
+        $findImage = function (string $stem, array $extOrder = ['jpg', 'jpeg', 'png']) use ($imageDirs): ?string {
+            foreach ($extOrder as $ext) {
+                foreach ($imageDirs as $dir) {
+                    $path = $dir . DIRECTORY_SEPARATOR . $stem . '.' . $ext;
+                    if (is_file($path)) {
+                        return $path;
+                    }
+                }
             }
-        }
 
-        $footerImgBase64 = null;
-        foreach ($searchDirs as $dir) {
-            $files = glob($dir . '/*footer*.png') ?: [];
-            if (!empty($files)) {
-                $footerImgBase64 = 'data:image/png;base64,' . base64_encode(file_get_contents($files[0]));
-                break;
-            }
-        }
+            return null;
+        };
 
-        $bizBgBase64 = null;
-        foreach ($searchDirs as $dir) {
-            $files = glob($dir . '/*business-clearance*.png') ?: [];
-            if (!empty($files)) {
-                $bizBgBase64 = 'data:image/png;base64,' . base64_encode(file_get_contents($files[0]));
-                break;
+        $artwork = function (string $stem, array $extOrder = ['jpg', 'jpeg', 'png']) use ($findImage): ?string {
+            $path = $findImage($stem, $extOrder);
+            if ($path === null) {
+                return null;
             }
-        }
+
+            $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+            if (in_array($ext, ['jpg', 'jpeg'], true)) {
+                return $this->jpegDataUri($path);
+            }
+
+            // PNG artwork: try a clean GD re-encode first, then Imagick; raw PNG
+            // bytes are never used because DomPDF's Cpdf engine hard-fails on
+            // GD-less servers and silently blanks RGBA PNGs.
+            return $this->pngDataUri($path) ?? $this->jpegDataUri($path);
+        };
+
+        // Letterhead artwork (header / footer / full-page background) + seals.
+        $headerImgBase64    = $artwork('barangay-san-jose-header');
+        $footerImgBase64    = $artwork('barangay-san-jose-footer', ['png', 'jpg', 'jpeg']);
+        $bizBgBase64        = $artwork('business-clearance-bg');
+        $barangaySealBase64 = $artwork('barangay-seal');
+        $talibonSealBase64  = $artwork('talibon-seal');
 
         $settings = DB::table('barangay_settings')->pluck('value', 'key')->toArray();
 
@@ -127,6 +176,7 @@ class DocumentPdfController extends Controller
             'documentType'       => $requestModel->transactionType->name ?? 'BARANGAY CERTIFICATION',
             'controlNumber'      => $requestModel->control_number,
             'qrCodeSvg'          => $qrCodeSvg,
+            'qrPngBase64'        => $qrPngBase64,
             'talibonSealBase64'  => $talibonSealBase64,
             'barangaySealBase64' => $barangaySealBase64,
             'headerImgBase64'    => $headerImgBase64,
@@ -151,19 +201,248 @@ class DocumentPdfController extends Controller
         // 👉 BAG-ONG CERTIFICATES (slug-based). Kung walay template, mo-fall through sa daan.
         $slug = $requestModel->transactionType->slug ?? null;
         if (!empty($slug) && view()->exists("pdf.certificates." . $slug)) {
-            $pdf = Pdf::loadView("pdf.certificates." . $slug, $data);
+            $pdf = $this->makePdf("pdf.certificates." . $slug, $data);
             $fileName = preg_replace("/[^A-Za-z0-9 _.-]/", "", ($requestModel->transactionType->name ?? "Certificate") . "-" . $resident->last_name);
             return $pdf->stream($fileName . ".pdf");
         }
 
 
         if (str_contains($typeLower, 'business')) {
-            $pdf = Pdf::loadView('pdf.business-clearance', $data);
-            return $pdf->stream('Barangay-Business-Clearance-' . $resident->last_name . '.pdf');
+            return $this->makePdf('pdf.business-clearance', $data)
+                ->stream('Barangay-Business-Clearance-' . $resident->last_name . '.pdf');
         }
 
-        $pdf = Pdf::loadView('pdf.certificate', $data);
-        return $pdf->stream('Barangay-Certificate-' . $resident->last_name . '.pdf');
+        return $this->makePdf('pdf.certificate', $data)
+            ->stream('Barangay-Certificate-' . $resident->last_name . '.pdf');
+    }
+
+    /**
+     * Build the PDF with DomPDF options tuned for restrictive shared hosts.
+     * Key fix: temp_dir must be writable — data-URI and converted images are
+     * materialized through temporary files, and on free hosts (InfinityFree /
+     * wuaze) sys_get_temp_dir() (/tmp) is NOT writable, which made every image
+     * render as alt text. Fall back to the app's own storage, then the system
+     * temp dir, whichever is actually writable.
+     */
+    private function makePdf(string $view, array $data): \Barryvdh\DomPDF\Pdf
+    {
+        return Pdf::loadView($view, $data)->setOptions(self::dompdfOptions(), true);
+    }
+
+    /**
+     * Shared DomPDF options (writable temp dir for InfinityFree/wuaze etc.),
+     * reused by other PDF-generating controllers (e.g. cash summary).
+     */
+    public static function dompdfOptions(): array
+    {
+        $candidates = [
+            storage_path('app/dompdf-tmp'),
+            storage_path('framework/dompdf-tmp'),
+            sys_get_temp_dir() . '/dompdf-' . md5(base_path()),
+        ];
+
+        $tempDir = null;
+        foreach ($candidates as $dir) {
+            if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+                continue;
+            }
+            if (is_writable($dir)) {
+                $tempDir = $dir;
+                break;
+            }
+        }
+
+        $options = config('dompdf.defines', []);
+
+        if ($tempDir !== null) {
+            $options['tempDir'] = $tempDir;
+            $options['fontDir'] = $options['fontDir'] ?? $tempDir;
+            $options['font_cache'] = $options['font_cache'] ?? $tempDir;
+        }
+
+        return $options;
+    }
+
+    /**
+     * Load an image file and re-encode it as a clean PNG data URI.
+     * Returns null when the file is missing or no encoder is available, so
+     * views can gracefully fall back instead of printing broken alt text.
+     */
+    private function pngDataUri(?string $path): ?string
+    {
+        if (empty($path) || !is_file($path)) {
+            return null;
+        }
+
+        try {
+            if (filesize($path) > 6 * 1024 * 1024) {
+                return null;
+            }
+
+            // Prefer the GD round-trip (guaranteed DomPDF-compatible output).
+            if (function_exists('imagecreatefrompng')) {
+                $img = @imagecreatefrompng($path);
+                if ($img !== false) {
+                    imagealphablending($img, true);
+                    imagesavealpha($img, true);
+                    ob_start();
+                    $ok = @imagepng($img, null, 6);
+                    imagedestroy($img);
+                    if ($ok) {
+                        return 'data:image/png;base64,' . base64_encode((string) ob_get_clean());
+                    }
+                    ob_end_clean();
+                }
+            }
+
+            // Imagick fallback for hosts without GD.
+            if (extension_loaded('imagick')) {
+                try {
+                    $im = new \Imagick($path);
+                    $im->setImageFormat('png');
+                    $data = $im->getImageBlob();
+                    $im->clear();
+
+                    return 'data:image/png;base64,' . base64_encode($data);
+                } catch (\Throwable $e) {
+                    // fall through
+                }
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return null;
+    }
+
+    /**
+     * Load an image as a JPEG data URI. JPEG is the one raster format DomPDF's
+     * Cpdf engine embeds with zero PHP extensions, so artwork converted to
+     * JPEG renders on every host — GD or not.
+     * PNG inputs are flattened onto white first (transparency would print black).
+     */
+    private function jpegDataUri(?string $path, int $quality = 90): ?string
+    {
+        if (empty($path) || !is_file($path)) {
+            return null;
+        }
+
+        try {
+            if (filesize($path) > 6 * 1024 * 1024) {
+                return null;
+            }
+
+            $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+            // Native JPEG: pass the bytes straight through.
+            if (in_array($ext, ['jpg', 'jpeg'], true)) {
+                $raw = @file_get_contents($path);
+
+                if ($raw !== false && str_starts_with($raw, "\xFF\xD8")) {
+                    return 'data:image/jpeg;base64,' . base64_encode($raw);
+                }
+
+                return null;
+            }
+
+            // PNG input: flatten onto a white matte so alpha never turns black.
+            if (function_exists('imagecreatefrompng')) {
+                $img = @imagecreatefrompng($path);
+
+                if ($img !== false) {
+                    $w = imagesx($img);
+                    $h = imagesy($img);
+                    $flat = imagecreatetruecolor($w, $h);
+                    $white = imagecolorallocate($flat, 255, 255, 255);
+                    imagefilledrectangle($flat, 0, 0, $w, $h, $white);
+                    imagealphablending($flat, true);
+                    imagecopy($flat, $img, 0, 0, 0, 0, $w, $h);
+
+                    ob_start();
+                    $ok = @imagejpeg($flat, null, $quality);
+                    imagedestroy($flat);
+                    imagedestroy($img);
+
+                    if ($ok) {
+                        return 'data:image/jpeg;base64,' . base64_encode((string) ob_get_clean());
+                    }
+                    ob_end_clean();
+                }
+            }
+
+            // Imagick fallback for hosts without GD.
+            if (extension_loaded('imagick')) {
+                try {
+                    $im = new \Imagick($path);
+                    $im->setImageBackgroundColor('white');
+                    $im->setImageAlphaChannel(\Imagick::ALPHACHANNEL_REMOVE);
+                    $im->setImageFormat('jpeg');
+                    $im->setImageCompressionQuality($quality);
+                    $data = $im->getImageBlob();
+                    $im->clear();
+
+                    return 'data:image/jpeg;base64,' . base64_encode($data);
+                } catch (\Throwable $e) {
+                    // fall through
+                }
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return null;
+    }
+
+    /**
+     * Render a QR code as a true PNG data URI using the Bacon encoder + GD,
+     * because DomPDF's SVG support is too limited to draw the SVG variant.
+     */
+    private function qrPngDataUri(string $content): ?string
+    {
+        try {
+            if (!function_exists('imagecreatetruecolor') || !class_exists(\BaconQrCode\Encoder\Encoder::class)) {
+                return null;
+            }
+
+            $qr      = \BaconQrCode\Encoder\Encoder::encode(
+                $content,
+                \BaconQrCode\Common\ErrorCorrectionLevel::forBits(0) // M — good balance of density/robustness
+            );
+            $matrix  = $qr->getMatrix();
+            $modules = $matrix->getWidth();
+            $quiet   = 4; // quiet-zone modules around the code
+            $scale   = 8; // px per module
+            $size    = ($modules + $quiet * 2) * $scale;
+
+            $img = imagecreatetruecolor($size, $size);
+            $white = imagecolorallocate($img, 255, 255, 255);
+            $black = imagecolorallocate($img, 17, 17, 17);
+            imagefilledrectangle($img, 0, 0, $size, $size, $white);
+
+            for ($y = 0; $y < $matrix->getHeight(); $y++) {
+                for ($x = 0; $x < $modules; $x++) {
+                    if ((int) $matrix->get($x, $y) === 1) {
+                        imagefilledrectangle(
+                            $img,
+                            ($x + $quiet) * $scale,
+                            ($y + $quiet) * $scale,
+                            ($x + $quiet + 1) * $scale - 1,
+                            ($y + $quiet + 1) * $scale - 1,
+                            $black
+                        );
+                    }
+                }
+            }
+
+            ob_start();
+            $ok = @imagepng($img, null, 6);
+            imagedestroy($img);
+
+            return $ok ? 'data:image/png;base64,' . base64_encode((string) ob_get_clean()) : null;
+        } catch (\Throwable $e) {
+            report($e);
+            return null;
+        }
     }
 
     private function numberToWords(float $amount): string
