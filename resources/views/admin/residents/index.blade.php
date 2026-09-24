@@ -54,6 +54,21 @@
         </div>
     </div>
 
+    <!-- ID Photo Lightbox -->
+    <div id="idViewer" class="id-viewer d-none">
+        <img id="idViewerImg" src="" alt="ID Photo" class="w-100">
+        <div class="id-viewer-body">
+            <button type="button" id="idViewerClose" class="btn btn-outline-secondary btn-sm mb-2">✕ Close</button>
+            <div class="id-viewer-meta">
+                <strong><span id="idViewerName"></span></strong><br>
+                <span id="idViewerType"></span> 
+                <span id="idViewerNum"></span>
+                <span id="idViewerPurok"></span>
+            </div>
+            <a id="idViewerOpen" href="" target="_blank" class="btn btn-sm btn-outline-primary mt-2">Open full resolution</a>
+        </div>
+    </div>
+
     <div class="resident-grid">
         @foreach ($users as $user)
             <div class="resident-card {{ $status === 'rejected' ? 'is-rejected' : '' }} {{ $status === 'pending' ? 'is-pending' : '' }} {{ $status === 'active' ? 'is-active' : '' }}">

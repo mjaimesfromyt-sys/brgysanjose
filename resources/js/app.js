@@ -42,3 +42,42 @@ function editRejectionReason(userId) {
     `;
     actions.appendChild(form);
 }
+
+// --- ID photo lightbox -------------------------------------------------------
+const idViewer = document.getElementById('idViewer');
+const idViewerImg = document.getElementById('idViewerImg');
+const idViewerName = document.getElementById('idViewerName');
+const idViewerType = document.getElementById('idViewerType');
+const idViewerNum = document.getElementById('idViewerNum');
+const idViewerPurok = document.getElementById('idViewerPurok');
+const idViewerOpen = document.getElementById('idViewerOpen');
+const idViewerClose = document.getElementById('idViewerClose');
+
+function openIdViewer(url, name, type, num, purok) {
+    if (!url) return;
+    idViewerImg.src = url;
+    idViewerName.textContent = name || '—';
+    idViewerType.textContent = type || '—';
+    idViewerNum.textContent = num || '—';
+    idViewerPurok.textContent = purok || '—';
+    idViewerOpen.href = url;
+    idViewer.classList.remove('d-none');
+    document.body.style.overflow = 'hidden';
+    idViewerImg.classList.remove('d-none');
+}
+
+function closeIdViewer() {
+    idViewer.classList.add('d-none');
+    document.body.style.overflow = '';
+    idViewerImg.classList.add('d-none');
+}
+
+if (idViewer) {
+    idViewerClose.addEventListener('click', closeIdViewer);
+    idViewer.addEventListener('click', function (e) {
+        if (e.target === idViewer) closeIdViewer();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeIdViewer();
+    });
+}

@@ -156,7 +156,7 @@
         <a href="{{ route('admin.residents.index') }}" class="kpi-card kpi-residents">
             <div>
                 <div class="kpi-icon icon-bg-residents">👥</div>
-                <div class="kpi-label">Active Residents</div>
+                <div class="kpi-label">Verified Residents</div>
                 <div class="kpi-value">{{ $residentsActive }}</div>
             </div>
             <div class="kpi-meta">
