@@ -14,6 +14,7 @@
 // 1. Tokens — must be declared BEFORE the Bootstrap import to beat its !default
 // -----------------------------------------------------------------------------
 
+// Amber for warnings and calls-to-action$_amber: #f59e0b;
 // Brand: deep civic green, echoing the barangay's own letterhead.
 $brand-50:  #f0fdf4;
 $brand-100: #dcfce7;
@@ -61,6 +62,7 @@ $border-color:     $line;
 // Controls — sized for touch. 44px is the accessible minimum target.
 $input-btn-padding-y:    .625rem;
 $input-btn-padding-x:    1.15rem;
+$_amber: #f59e0b; // brand-amber
 $input-btn-font-size:    1.0625rem;
 $input-btn-focus-width:  .2rem;
 $input-btn-padding-y-sm: .45rem;
@@ -96,7 +98,7 @@ $badge-padding-x:     .7em;
 // `row-cols-md-7` silently did nothing and day cells collapsed to 2 columns.
 $grid-row-columns: 7;
 
-@import "bootstrap/scss/bootstrap";
+@import "bootstrap/scss/bootstrap.scss";
 
 // -----------------------------------------------------------------------------
 // 2. Base
@@ -1004,4 +1006,189 @@ $viz-plot-h: 10rem;
         box-shadow: none !important;
         break-inside: avoid;
     }
+}
+
+// -----------------------------------------------------------------------------
+// 5. Admin residents — card-based list with stat cards
+// -----------------------------------------------------------------------------
+
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    border-radius: 12px;
+    background: #fff;
+    border: 1px solid $line;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.07); }
+
+    .stat-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        flex-shrink: 0;
+    }
+
+    .stat-content { flex: 1; }
+    .stat-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: $ink-muted;
+    }
+    .stat-value {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: $ink;
+        line-height: 1.2;
+    }
+}
+
+.stat-card.danger .stat-icon { background: #fef2f2; color: $danger; }
+.stat-card.amber .stat-icon { background: #fffbeb; color: $_amber; }
+.stat-card.success .stat-icon { background: #f0fdf4; color: $success; }
+
+// --- Resident card ------------------------------------------------------------
+.resident-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1rem;
+}
+
+.resident-card {
+    display: flex;
+    gap: 1rem;
+    padding: 1.2rem;
+    border-radius: 12px;
+    background: #fff;
+    border: 1px solid $line;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+        border-color: $brand-100;
+    }
+
+    &.is-pending {
+        border-left: 4px solid $_amber;
+        background: #fff;
+    }
+
+    &.is-active {
+        border-left: 4px solid $success;
+        background: #f0fdf4;
+    }
+
+    &.is-rejected {
+        border-left: 4px solid $danger;
+        background: #fef2f2;
+    }
+}
+
+.resident-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    background: $line-strong;
+    color: $ink-muted;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.resident-body { flex: 1 1 0; }
+.resident-name {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: $ink;
+    margin-bottom: 0.3rem;
+}
+.resident-detail {
+    font-size: 0.9rem;
+    color: $ink-muted;
+    line-height: 1.6;
+}
+.resident-id {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    margin-top: 0.6rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid $line;
+}
+.resident-type { margin-top: 0.4rem; }
+.resident-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.7rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid $line;
+    align-items: center;
+}
+
+// Rejection reason display inside card
+.rejection-reason {
+    margin-top: 0.7rem;
+    padding: 0.6rem 0.75rem;
+    background: #fef2f2;
+    border: 1px solid mix($danger, #fff, 20%);
+    border-left: 3px solid $danger;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: $danger;
+}
+
+.reason-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: $danger;
+    margin-bottom: 0.2rem;
+}
+
+.reason-text {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.reason-display {
+    margin-top: 0.7rem;
+    padding: 0.6rem 0.75rem;
+    background: #fef2f2;
+    border: 1px solid mix($danger, #fff, 20%);
+    border-left: 3px solid $danger;
+    border-radius: 6px;
+}
+
+.reason-display .reason-text {
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+// Edit reason (requests cursor) so it is not clickable
+.opn-edit {
+    cursor: pointer;
 }
